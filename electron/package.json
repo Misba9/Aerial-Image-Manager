@@ -1,0 +1,24 @@
+{
+  "name": "shamal-tools",
+  "version": "0.1.0",
+  "productName": "Shamal Tools",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build:win": "electron-builder --config electron-builder.config.js --win portable",
+    "build:win-installer": "electron-builder --config electron-builder.config.js --win nsis"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3"
+  },
+  "build": {
+    "extends": null
+  }
+}
+

@@ -1,0 +1,5 @@
+# Node / Electron
+node_modules/
+dist/
+build/
+release/

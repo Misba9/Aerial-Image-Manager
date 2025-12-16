@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shamal Tools</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-circle">S</div>
+        <div class="brand-text">
+          <h1 data-i18n="title">Shamal Tools</h1>
+          <p>
+            A focused suite for flight imagery workflows
+          </p>
+        </div>
+      </div>
+      <!-- <div class="actions">
+        <div class="lang-toggle" role="group" aria-label="Language selector">
+          <button class="lang-btn active" data-lang="en">EN</button>
+          <button class="lang-btn" data-lang="ar">AR</button>
+        </div>
+      </div> -->
+    </header>
+
+    <main class="content">
+      <section class="hero" role="presentation">
+        <h2 data-i18n="hero.title">Work smarter with flight data</h2>
+        <p data-i18n="hero.body">
+          Geotag photos, rename flights, and organize maps from one clean
+          dashboard.
+        </p>
+      </section>
+
+      <section class="cards" aria-label="Tool shortcuts">
+        <article
+          class="tool-card"
+          data-target="../modules/geotagging/geotag.html"
+          tabindex="0"
+        >
+          <div class="card-head">
+            <div class="card-badge">GT</div>
+            <h3 data-i18n="geotag">Smart Geotagging</h3>
+          </div>
+          <p data-i18n="cards.geotag.body">
+            Extract or write GPS EXIF to your images with confidence.
+          </p>
+          <button class="primary-btn" data-i18n="cards.cta">Open module</button>
+        </article>
+
+        <article
+          class="tool-card"
+          data-target="../modules/flightRenamer/renamer.html"
+          tabindex="0"
+        >
+          <div class="card-head">
+            <div class="card-badge">FR</div>
+            <h3 data-i18n="rename">Flight Renamer</h3>
+          </div>
+          <p data-i18n="cards.renamer.body">
+            Batch rename flight images using structured, human-friendly rules.
+          </p>
+          <button class="primary-btn" data-i18n="cards.cta">Open module</button>
+        </article>
+
+        <article
+          class="tool-card"
+          data-target="../modules/mapOrganizer/map.html"
+          tabindex="0"
+        >
+          <div class="card-head">
+            <div class="card-badge">MO</div>
+            <h3 data-i18n="map">Map Organizer</h3>
+          </div>
+          <p data-i18n="cards.map.body">
+            Visualize and group images on a map-ready timeline and layout.
+          </p>
+          <button class="primary-btn" data-i18n="cards.cta">Open module</button>
+        </article>
+      </section>
+    </main>
+
+    <script src="./dashboard.js"></script>
+  </body>
+</html>
+

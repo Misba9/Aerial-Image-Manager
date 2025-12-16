@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Geotagging | Shamal Tools</title>
+    <link rel="stylesheet" href="./geotag.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="crumbs">
+        <a class="back" href="../../renderer/index.html" aria-label="Back to dashboard">←</a>
+        <div>
+          <p class="eyebrow">Shamal Tools</p>
+          <h1 id="title">Smart Geotagging</h1>
+        </div>
+      </div>
+      <!-- <div class="lang" id="langLabel">EN</div> -->
+    </header>
+
+    <main class="page">
+      <section class="action-bar">
+        <div class="left-actions">
+          <button id="selectFolderBtn" class="ghost">Select folder</button>
+          <label class="checkbox">
+            <input id="recursiveToggle" type="checkbox" />
+            <span>Scan sub-folders</span>
+          </label>
+          <div class="right-actions">
+            <button id="scanBtn" class="primary">Scan images</button>
+            <button id="rescanBtn" class="ghost">Rescan</button>
+            <button id="exportCsvBtn" class="ghost">Export CSV</button>
+            <button id="importCsvBtn" class="ghost">Import CSV</button>
+          </div>
+        </div>
+        <div class="path-line">
+          <span class="muted   small">Selected path:</span>
+          <div id="folderLabel" class="path-label">No folder selected</div>
+        </div>
+      </section>
+
+      <section class="panel progress-panel">
+        <div class="progress-header">
+          <div>
+            <p class="eyebrow">Progress</p>
+            <h3 id="progressLabel" class="status-pill">Idle</h3>
+            <p id="progressMeta" class="muted">No folder selected</p>
+          </div>
+          <div class="progress-bar">
+            <div id="progressBarFill"></div>
+          </div>
+          <div class="progress-footer">
+            <span id="progressCount" class="muted small">0 / 0 files</span>
+            <span id="progressPercent" class="muted small">0%</span>
+          </div>
+        </div>
+        <!-- <div id="statusLog" class="status-log" role="log" aria-live="polite"></div> -->
+      </section>
+
+      <section class="stats-grid">
+        <div class="stat-card">
+          <p class="muted small">Total</p>
+          <h2 id="statTotal">0</h2>
+        </div>
+        <div class="stat-card success">
+          <p class="muted small">With GPS</p>
+          <h2 id="statWithGps">0</h2>
+        </div>
+        <div class="stat-card warn">
+          <p class="muted small">Missing GPS</p>
+          <h2 id="statMissingGps">0</h2>
+        </div>
+        <div class="stat-card info">
+          <p class="muted small">Writable</p>
+          <h2 id="statWritable">0</h2>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <section class="panel main-panel">
+          <div class="toolbar">
+            <input id="searchInput" type="search" placeholder="Search images..." />
+            <div class="chip">
+              Showing <span id="filteredCount">0</span>
+            </div>
+          </div>
+          <div id="imageGrid" class="image-grid"></div>
+        </section>
+
+        <aside class="panel inspector">
+          <div class="inspector-header">
+            <h3>Metadata Inspector</h3>
+            <p class="muted small">Read-only</p>
+          </div>
+          <div class="meta-group">
+            <div class="meta-row">
+              <label>File</label>
+              <div id="metaFile" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>Status</label>
+              <div id="metaStatus" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>Latitude</label>
+              <div id="metaLat" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>Longitude</label>
+              <div id="metaLon" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>Altitude</label>
+              <div id="metaAlt" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>Timestamp</label>
+              <div id="metaTime" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>Camera</label>
+              <div id="metaCamera" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>Dimensions</label>
+              <div id="metaDims" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>Writable</label>
+              <div id="metaWritable" class="value"></div>
+            </div>
+            <div class="meta-row">
+              <label>CSV</label>
+              <div id="metaCsv" class="value"></div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="./geotag.js"></script>
+  </body>
+</html>
+

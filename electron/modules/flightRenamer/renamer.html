@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flight Renamer | Shamal Tools</title>
+  <link rel="stylesheet" href="./renamer.css" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="page-header">
+      <div class="header-left">
+        <a class="back icon-btn ghost" href="../../renderer/index.html" aria-label="Back to dashboard">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </span>
+        </a>
+        <div class="titles">
+          <p class="eyebrow">Shamal Tools</p>
+          <h1>Flight Renaming</h1>
+          <p class="subtitle">Batch rename images with flight-aware patterns</p>
+        </div>
+      </div>
+      <!-- <div class="header-actions">
+        <div class="lang-toggle">
+          <button id="langEn" class="chip ghost small">EN</button>
+          <button id="langAr" class="chip ghost small">AR</button>
+        </div>
+      </div> -->
+    </header>
+
+    <main class="page">
+      <section class="panel folder-card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Folder</p>
+            <h3>Select source images</h3>
+          </div>
+          <span id="folderStatus" class="status-badge status-idle">No folder selected</span>
+        </div>
+        <div class="folder-actions">
+          <button id="pickSrcTop" class="ghost icon-btn">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 7h6l2 2h10v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+              </svg>
+            </span>
+            Select Folder
+          </button>
+          <div class="path-line">
+            <div class="muted small">Selected path</div>
+            <div id="selectedLabel" class="path-label">No folder selected</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel options">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Configuration</p>
+            <h3>Rename settings</h3>
+          </div>
+          <div class="helper-text">
+            <div class="actions">
+              <button id="previewBtn" class="ghost icon-btn" type="button">
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+                  </svg>
+                </span>
+                Preview
+              </button>
+              <button id="runBtn" class="primary icon-btn" type="button">
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg>
+                </span>
+                Apply Rename
+              </button>
+              <button id="undoBtn" class="ghost icon-btn" type="button">
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 14l-4-4 4-4" />
+                    <path d="M20 20H9a7 7 0 1 1 0-14h11" />
+                  </svg>
+                </span>
+                Undo Last
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="option-grid">
+          <div class="field">
+            <label class="label">Pattern</label>
+            <input id="pattern" class="text" type="text" placeholder="e.g. Flight_##_####.jpg" />
+          </div>
+          <div class="field">
+            <label class="label">Flight Number ##(01)</label>
+            <input id="startFlight" class="text" type="number" min="0" value="1" />
+          </div>
+          <div class="field">
+            <label class="label">Image Number ####(0001)</label>
+            <input id="startImage" class="text" type="number" min="1" value="1" />
+          </div>
+          <div class="field">
+            <label class="label">Prefix (optional)</label>
+            <input id="prefix" class="text" type="text" placeholder="e.g. FLT" />
+          </div>
+          <div class="field">
+            <label class="label">Suffix (optional)</label>
+            <input id="suffix" class="text" type="text" placeholder="e.g. _v2" />
+          </div>
+          <div class="field checkbox-row">
+            <label class="checkbox">
+              <input id="includeOriginal" type="checkbox" />
+              <span>Include original filename</span>
+            </label>
+            <label class="checkbox">
+              <input id="includeTimestamp" type="checkbox" />
+              <span>Include EXIF timestamp</span>
+            </label>
+          </div>
+        </div>
+
+      </section>
+
+      <section class="panel split">
+        <div class="preview">
+          <div class="toolbar">
+            <div>
+              <p class="eyebrow">Preview</p>
+              <h3>Preview Results</h3>
+            </div>
+            <div class="chip">Files: <span id="fileCount">0</span></div>
+          </div>
+          <div class="table">
+            <div class="table-head">
+              <span>Original name</span>
+              <span>New name</span>
+              <span>Flight #</span>
+              <span>Image #</span>
+            </div>
+            <div id="previewList" class="table-body"></div>
+            <div id="emptyState" class="empty">No preview yet</div>
+            <div class="pager">
+              <button id="prevPage" class="ghost">Prev</button>
+              <span id="pageInfo">Page 1</span>
+              <button id="nextPage" class="ghost">Next</button>
+            </div>
+          </div>
+        </div>
+        <!-- <div class="log-panel">
+          <p class="eyebrow">Activity</p>
+          <h3>Status</h3>
+          <div id="statusLog" class="log" role="log" aria-live="polite"></div>
+        </div> -->
+      </section>
+    </main>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+  <script src="./renamer.js"></script>
+</body>
+
+</html>

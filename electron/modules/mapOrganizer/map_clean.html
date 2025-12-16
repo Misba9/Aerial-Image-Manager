@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://unpkg.com; img-src 'self' data: https:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Map Organizer</title>
+    <link rel="stylesheet" href="./map_clean.css" />
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+
+<body>
+    <!-- Top bar -->
+    <div class="top-bar">
+        <h1 class="title">Map Organizer</h1>
+        <button id="selectFolderBtn" class="btn btn-primary">Select Folder</button>
+    </div>
+
+    <!-- Folder path display -->
+    <div class="folder-path-bar">
+        <span id="folderPathText">No folder selected</span>
+    </div>
+
+    <!-- Main content area -->
+    <div class="main-container">
+        <!-- Left buttons -->
+        <div class="left-buttons">
+            <button id="loadImagesBtn" class="btn btn-secondary" disabled>Load Images</button>
+            <button id="exportSelectedBtn" class="btn btn-success" disabled>Export Selected Images</button>
+        </div>
+
+        <!-- Main section with map and sidebar -->
+        <div class="content-area">
+            <!-- Large Leaflet map -->
+            <div id="map" class="map-container"></div>
+
+            <!-- Right sidebar card -->
+            <div class="sidebar-card">
+                <!-- Map Controls section -->
+                <div class="sidebar-section">
+                    <h3>Map Controls</h3>
+                    <p>Use drawing tools to select markers</p>
+                    <p>Click markers to view images</p>
+                </div>
+
+                <!-- Statistics section -->
+                <div class="sidebar-section">
+                    <h3>Statistics</h3>
+                    <div class="stat-item">
+                        <span>Total Images:</span>
+                        <span id="totalImagesCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Selected:</span>
+                        <span id="selectedCount">0</span>
+                    </div>
+                </div>
+
+                <!-- Selected Files section -->
+                <div class="sidebar-section">
+                    <h3>Selected Files</h3>
+                    <div id="selectedFilesList" class="selected-files-list">
+                        No files selected
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="./map_clean.js"></script>
+</body>
+
+</html>

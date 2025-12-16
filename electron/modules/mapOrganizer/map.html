@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; img-src 'self' data: https: blob:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Map Organizer | Shamal Tools</title>
+  <link rel="stylesheet" href="./map.css" />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet Draw CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+</head>
+
+<body>
+  <div class="page">
+    <div class="top-bar">
+      <div class="header-left">
+        <a class="back icon-btn ghost" href="../../renderer/index.html" aria-label="Back to dashboard">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </span>
+        </a>
+        <div class="titles">
+          <p class="eyebrow">Shamal Tools</p>
+          <h1>Map Organization Tool</h1>
+          <p class="subtitle">Visualize and organize images on a map</p>
+        </div>
+      </div>
+      <!-- <div class="header-actions">
+        <div class="lang-toggle">
+          <button id="langEn" class="chip ghost small">EN</button>
+          <button id="langAr" class="chip ghost small">AR</button>
+        </div>
+      </div> -->
+    </div>
+
+    <div class="actions-bar">
+      <div class="actions-left">
+        <div class="folder-path-display">
+          <span class="muted small">Selected folder</span>
+          <span id="folderPathText">No folder selected</span>
+        </div>
+        <div class="statistics">
+          <span class="stat-item">Total Images: <span id="totalImagesCount">0</span></span>
+          <span class="stat-item">Selected: <span id="selectedCount">0</span></span>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="selectFolderBtn" class="ghost icon-btn">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7h6l2 2h10v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+            </svg>
+          </span>
+          Select Image Folder
+        </button>
+        <button id="loadImagesBtn" class="ghost icon-btn" disabled>
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+          </span>
+          Load Images
+        </button>
+        <button id="exportImagesBtn" class="primary icon-btn">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12l5 5L20 7" />
+            </svg>
+          </span>
+          Export Selected Images
+        </button>
+        <button id="clearSelectionBtn" class="ghost icon-btn">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </span>
+          Clear Selection
+        </button>
+      </div>
+    </div>
+
+    <div class="map-wrapper">
+      <div id="map"></div>
+      <!-- <div class="selection-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Selection</p>
+            <h3>Selected Files</h3>
+          </div>
+        </div>
+        <div id="selectedFilesList" class="selected-files-list">
+          No files selected
+        </div>
+      </div> -->
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet Draw JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="./map.js"></script>
+</body>
+
+</html>
