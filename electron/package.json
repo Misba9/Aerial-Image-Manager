@@ -1,7 +1,8 @@
 {
   "name": "shamal-tools",
+  "productName": "Shamal Tools",
   "version": "1.0.4",
-  "description": "Shamal Tools – Desktop Application",
+  "description": "All-in-one aerial image management and geospatial utility tool",
   "author": "Shamal Technologies",
   "main": "main.js",
   "scripts": {
@@ -12,7 +13,8 @@
   "build": {
     "appId": "com.shamal.tools",
     "productName": "Shamal Tools",
-    "icon": "assets/shamal-tools-1.ico",
+    "icon": "build/icon.ico",
+    "copyright": "Copyright © 2025 Shamal Technologies",
     "asarUnpack": [
       "python/**"
     ],
@@ -30,7 +32,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "assets/shamal-tools-1.ico",
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "verifyUpdateCodeSignature": false
     },
@@ -39,8 +41,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "installerIcon": "assets/shamal-tools-1.ico",
-      "uninstallerIcon": "assets/shamal-tools-1.ico",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
       "deleteAppDataOnUninstall": true,
       "include": "build/installer.nsh",
       "artifactName": "Shamal-Tools-${version}-Setup.${ext}"

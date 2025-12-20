@@ -2,9 +2,26 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const APP_NAME = 'Shamal Tools';
+const APP_ID = 'com.shamal.tools';
+const PRIMARY_ICON_PATH = path.join(__dirname, '../build/icon.ico');
+const FALLBACK_ICON_PATH = path.join(__dirname, 'build', 'icon.ico');
+const resolveAppIcon = () => {
+  try {
+    if (fs.existsSync(PRIMARY_ICON_PATH)) return PRIMARY_ICON_PATH;
+    if (fs.existsSync(FALLBACK_ICON_PATH)) return FALLBACK_ICON_PATH;
+  } catch (_err) {
+    // ignore missing icon; Electron will fallback to default
+  }
+  return undefined;
+};
+
+app.setName(APP_NAME);
+app.setAppUserModelId(APP_ID);
 const isDev = !app.isPackaged;
 let autoUpdater;
 let electronLog;
+const appIconPath = resolveAppIcon();
 
 const pythonPath = isDev
   ? 'python'
@@ -517,6 +534,8 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: APP_NAME,
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
