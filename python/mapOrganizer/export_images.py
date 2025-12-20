@@ -149,3 +149,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    sys.exit(0)

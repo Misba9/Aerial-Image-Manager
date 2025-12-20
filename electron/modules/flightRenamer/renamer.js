@@ -53,11 +53,16 @@
   const updateButtons = () => {
     const hasFolder = state.folderSelected && Boolean(state.src);
     const hasImages = state.imageCount > 0;
-    const patternValue = (els.pattern.value || '').trim();
-    const patternValid = patternValue ? validatePattern(patternValue, true) : true; // Allow empty pattern initially
+    const patternValue = (els.pattern?.value || '').trim();
 
     const canPreview = !state.busy && hasFolder && hasImages;
-    const canRun = !state.busy && state.previewReady && hasFolder && hasImages && patternValue && validatePattern(patternValue, true);
+    const canRun =
+      !state.busy &&
+      state.previewReady &&
+      hasFolder &&
+      hasImages &&
+      patternValue &&
+      validatePattern(patternValue, true);
     const canUndo = !state.busy && state.renameApplied;
 
     if (els.previewBtn) els.previewBtn.disabled = !canPreview;
@@ -74,15 +79,34 @@
     btn.textContent = loading ? 'Working...' : btn.dataset.original;
   };
 
-  const readForm = () => ({
-    pattern: (els.pattern.value || '').trim(),
-    startFlight: Number(els.startFlight.value || 1),
-    startImage: Number(els.startImage.value || 1),
-    prefix: (els.prefix.value || '').trim(),
-    suffix: (els.suffix.value || '').trim(),
-    includeOriginal: !!els.includeOriginal.checked,
-    includeTimestamp: !!els.includeTimestamp.checked
-  });
+  const readForm = () => {
+    const flightValue = (els.startFlight?.value ?? '').trim();
+    const flightNumber = flightValue === '' ? NaN : Number(flightValue);
+    const startImageNumber = Number(els.startImage?.value || 1);
+    return {
+      pattern: (els.pattern?.value || '').trim(),
+      flightNumber,
+      startImageNumber,
+      startFlight: flightNumber,
+      startImage: startImageNumber,
+      prefix: (els.prefix?.value || '').trim(),
+      suffix: (els.suffix?.value || '').trim(),
+      includeOriginal: !!els.includeOriginal?.checked,
+      includeTimestamp: !!els.includeTimestamp?.checked
+    };
+  };
+
+  const clearPreviewComputedFields = () => {
+    state.items = (state.items || []).map((item) => ({
+      ...item,
+      newName: '',
+      flightNumber: null,
+      imageNumber: null
+    }));
+    state.previewReady = false;
+    state.renameApplied = false;
+    renderPreview();
+  };
 
   const validatePattern = (pattern, silent = false) => {
     if (!pattern) {
@@ -92,26 +116,37 @@
       }
       return false;
     }
-    
-    // Check if pattern matches the specific Flight_##_#### format (with or without .jpg extension)
-    const flightPatternRegex = /^Flight_##_####(?:\.jpg)?$/i;
-    if (flightPatternRegex.test(pattern)) {
-      return true;
+    const hasFlight = pattern.includes('##');
+    const hasImage = pattern.includes('####');
+    if (hasFlight && hasImage) return true;
+
+    if (!silent) {
+      log('Pattern must include ## (flight) and #### (image).', 'error');
+      showToast('Pattern must include ## and #### placeholders', 'error');
     }
-    
-    // For backward compatibility, also allow the general pattern validation
-    const groups = [...pattern.matchAll(/#+/g)].map((m) => m[0]);
-    if (groups.length < 2) {
+    return false;
+  };
+
+  const validateConfig = (options, silent = false) => {
+    if (!validatePattern(options.pattern, silent)) return false;
+    if (Number.isNaN(options.flightNumber)) {
       if (!silent) {
-        log('Pattern must include flight (##) and image (####) placeholders.', 'error');
-        showToast('Pattern must include ## and #### placeholders', 'error');
+        log('Flight number is required.', 'error');
+        showToast('Flight number is required', 'error');
       }
       return false;
     }
-    if (groups[0].length < 2 || groups[1].length < 4) {
+    if (!(options.startImageNumber > 0 && Number.isInteger(options.startImageNumber))) {
       if (!silent) {
-        log('Flight placeholder should be at least 2 # and image at least 4 #.', 'error');
-        showToast('Use ## for flight and #### for image', 'error');
+        log('Start image number must be a positive integer.', 'error');
+        showToast('Start image number must be a positive integer', 'error');
+      }
+      return false;
+    }
+    if (!state.imageCount || state.imageCount <= 0) {
+      if (!silent) {
+        log('No images found in folder.', 'error');
+        showToast('Folder must contain images', 'error');
       }
       return false;
     }
@@ -140,7 +175,6 @@
       const colA = document.createElement('span');
       colA.textContent = item.originalName || '';
       const colB = document.createElement('span');
-      // Only show newName if preview is ready, otherwise show empty string
       colB.textContent = state.previewReady ? (item.newName || '') : '';
       const colC = document.createElement('span');
       colC.textContent = item.flightNumber ?? '';
@@ -180,7 +214,6 @@
     updateButtons();
   };
 
-
   const scanImages = async () => {
     if (!state.src) return;
     try {
@@ -196,6 +229,7 @@
       const data = res.data || res;
       state.items = data.files || [];
       state.imageCount = state.items.length;
+      console.log('[FlightRenamer] Scan found images:', state.imageCount, 'path:', state.src);
       state.page = 1;
       state.previewReady = false;
       state.renameApplied = false;
@@ -235,12 +269,13 @@
   };
 
   const callRename = async (mode, payload) => {
-    // Use the legacy api.renameFlightImages for all operations
     if (window.api?.renameFlightImages) {
       return window.api.renameFlightImages(payload);
     }
     throw new Error('Rename API not available');
   };
+
+  const confirmExecute = (count, pattern) => window.confirm(`Rename ${count} images using pattern ${pattern}?`);
 
   const runAction = async (mode) => {
     if (!state.src) {
@@ -249,18 +284,22 @@
       return;
     }
     const options = readForm();
-    if (!validatePattern(options.pattern)) {
-      return;
-    }
-    if (mode === 'execute' && !state.previewReady) {
-      log('Generate a preview before applying rename.', 'error');
-      showToast('Preview first, then apply rename', 'warning');
+    if (!validateConfig(options)) {
       updateButtons();
       return;
     }
+
     if (mode === 'execute') {
-      // Automatically set output to 'renamed' folder within source folder
-      // Use forward slash for cross-platform compatibility
+      if (!state.previewReady) {
+        log('Generate a preview before applying rename.', 'error');
+        showToast('Preview first, then apply rename', 'warning');
+        updateButtons();
+        return;
+      }
+      if (!confirmExecute(state.imageCount, options.pattern)) {
+        log('Rename cancelled by user.', 'info');
+        return;
+      }
       state.output = `${state.src}/renamed`;
     }
     if (mode === 'undo') {
@@ -297,15 +336,14 @@
         if (Array.isArray(data.errors) && data.errors.length) {
           data.errors.slice(0, 10).forEach((e) => log(`Warning: ${e}`, 'error'));
         }
-        state.previewReady = true; // keep preview as valid after execution
-        state.renameApplied = true; // mark that rename was applied
-        updateButtons(); // Update button states to enable undo
-        
-        // Open the renamed folder in file explorer
+        state.previewReady = true;
+        state.renameApplied = true;
+        updateButtons();
+
         const folderToOpen = state.lastOutput || state.output;
         if (folderToOpen && (window.electronAPI?.openFolder || window.api?.openFolder)) {
           const openFunc = window.electronAPI?.openFolder || window.api?.openFolder;
-          openFunc(folderToOpen).catch(err => {
+          openFunc(folderToOpen).catch((err) => {
             console.error('Failed to open folder:', err);
             log('Failed to open folder: ' + (err.message || 'Unknown error'), 'error');
           });
@@ -314,13 +352,12 @@
         log(`Undo completed. Removed: ${data.removed || 0}`, 'success');
         showToast('Undo completed', 'success');
         state.renameApplied = false;
-        updateButtons(); // Update button states to disable undo
+        updateButtons();
       } else {
         log(`Preview ready for ${state.items.length} files.`, 'info');
         showToast('Preview generated', 'success');
         state.previewReady = true;
         state.renameApplied = false;
-        // Re-render preview to show the new names
         renderPreview();
       }
     } catch (err) {
@@ -334,12 +371,11 @@
   };
 
   const handlePreview = () => {
-    // Set a default pattern if none is provided for preview
-    if (!(els.pattern.value || '').trim()) {
+    if (!(els.pattern?.value || '').trim()) {
       els.pattern.value = 'Flight_##_####';
     }
-    // Validate pattern before proceeding
-    if (!validatePattern((els.pattern.value || '').trim(), false)) {
+    if (!validateConfig(readForm(), false)) {
+      updateButtons();
       return;
     }
     runAction('preview');
@@ -410,42 +446,33 @@
       });
     }
 
-    // Invalidate preview when config changes
     [els.pattern, els.startFlight, els.startImage, els.prefix, els.suffix, els.includeOriginal, els.includeTimestamp].forEach((input) => {
       if (!input) return;
       input.addEventListener('input', () => {
-        state.previewReady = false;
-        state.renameApplied = false;
+        clearPreviewComputedFields();
         updateButtons();
       });
       input.addEventListener('change', () => {
-        state.previewReady = false;
-        state.renameApplied = false;
+        clearPreviewComputedFields();
         updateButtons();
       });
     });
-    
-    // Set default pattern if none exists
+
     if (els.pattern && !(els.pattern.value || '').trim()) {
       els.pattern.value = 'Flight_##_####';
     }
-    
-    // Initial button state update
+
     setTimeout(updateButtons, 100);
-    
-    // Update buttons when pattern changes
+
     if (els.pattern) {
       els.pattern.addEventListener('input', updateButtons);
       els.pattern.addEventListener('change', updateButtons);
     }
-    
-    // Ensure pattern is always valid
+
     if (els.pattern) {
-      // Validate pattern on blur
       els.pattern.addEventListener('blur', () => {
         const pattern = (els.pattern.value || '').trim();
         if (pattern && !validatePattern(pattern, true)) {
-          // Reset to default if invalid
           els.pattern.value = 'Flight_##_####';
         }
         updateButtons();
@@ -454,7 +481,6 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    // Cache elements after DOM is ready
     Object.assign(els, {
       lang: document.documentElement,
       langEn: qs('langEn'),
@@ -488,3 +514,4 @@
     updateButtons();
   });
 })();
+

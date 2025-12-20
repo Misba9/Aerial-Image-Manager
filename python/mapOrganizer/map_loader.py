@@ -15,6 +15,7 @@ Returns:
 import os
 import sys
 import json
+from pathlib import Path
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 
@@ -106,21 +107,23 @@ def scan_images_for_gps(folder_path):
     batch_size = 1000
     current_batch = []
     
-    # Walk through folder
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            # Check if file is an image
-            if file.lower().endswith(image_extensions):
-                total_images += 1
-                file_path = os.path.join(root, file)
-                
-                # Add to current batch
-                current_batch.append((file, file_path))
-                
-                # Process batch when it reaches the batch size
-                if len(current_batch) >= batch_size:
-                    process_batch(current_batch, geotagged_images)
-                    current_batch = []  # Reset batch
+    # Only scan the top-level contents of the selected folder (no recursion)
+    for entry in Path(folder_path).iterdir():
+        if not entry.is_file():
+            continue  # Skip subfolders and non-file entries
+            
+        # Check if file is an image
+        if entry.suffix.lower() in image_extensions:
+            total_images += 1
+            file_path = str(entry)
+            
+            # Add to current batch
+            current_batch.append((entry.name, file_path))
+            
+            # Process batch when it reaches the batch size
+            if len(current_batch) >= batch_size:
+                process_batch(current_batch, geotagged_images)
+                current_batch = []  # Reset batch
     
     # Process remaining files in the final batch
     if current_batch:
@@ -191,3 +194,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    sys.exit(0)

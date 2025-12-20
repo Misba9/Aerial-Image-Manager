@@ -16,15 +16,12 @@
     currentSelection: null,
     selectedImages: [],
     selectionCountElement: null,
-    isLoading: false
+    isLoading: false,
+    totalImagesInFolder: 0
   };
 
-  const log = (msg, level = 'info') => {
-    // Only log errors and important info in production
-    if (level === 'error' || level === 'warn') {
-      console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
-    }
-  };
+  // Logging is intentionally silenced in production to avoid console noise
+  const log = () => {};
 
   const showLoadingIndicator = () => {
     if (state.isLoading) return;
@@ -314,6 +311,7 @@
       if (els.totalImagesCount) {
         els.totalImagesCount.textContent = '0';
       }
+      state.totalImagesInFolder = 0;
       if (els.selectedCount) {
         els.selectedCount.textContent = '0';
       }
@@ -372,21 +370,30 @@
       }
       
       if (!result || !result.ok) {
-        throw new Error(result?.error || 'Failed to extract GPS data');
+        throw new Error(result?.error || 'Map loading failed');
       }
       
       // Extract the images array from the result data
       const gpsData = (result.data && result.data.images) ? result.data.images : [];
+      const totalImagesInFolder = (typeof result.data?.total_count === 'number')
+        ? result.data.total_count
+        : (typeof result.data?.total_images === 'number' ? result.data.total_images : gpsData.length);
+      
+      // Update total images count based on top-level scan only
+      state.totalImagesInFolder = totalImagesInFolder;
+      if (els.totalImagesCount) {
+        els.totalImagesCount.textContent = totalImagesInFolder;
+      }
       
       // Check if any images were found at all
-      if (result.data && typeof result.data.total_images === 'number' && result.data.total_images === 0) {
+      if (totalImagesInFolder === 0) {
         showToast('No images found in the selected folder', 'warning');
         log('No images found in the selected folder', 'info');
       }
       // Check if any GPS data was found
       else if (gpsData.length === 0) {
-        showToast('No geotagged images found in the selected folder', 'warning');
-        log('No geotagged images found in the selected folder', 'info');
+        showToast('No GPS-tagged images found in this folder', 'warning');
+        log('No GPS-tagged images found in this folder', 'info');
       } else {
         showToast(`Successfully loaded ${gpsData.length} GPS points`, 'success');
       }
@@ -398,7 +405,7 @@
       updateButtonStates();
     } catch (err) {
       log(`Error extracting GPS data: ${err.message}`, 'error');
-      showToast(`Failed to extract GPS data: ${err.message}`, 'error');
+      showToast(`Map loading failed: ${err.message}`, 'error');
       
       // Fallback to sample markers on error
       loadSampleMarkers();
@@ -423,6 +430,7 @@
     if (els.totalImagesCount) {
       els.totalImagesCount.textContent = '0';
     }
+    state.totalImagesInFolder = 0;
     
     // Reset selected count to 0
     if (els.selectedCount) {
@@ -443,7 +451,9 @@
     }
     
     // Clear existing markers
+    const preservedTotalImages = state.totalImagesInFolder;
     clearMarkers();
+    state.totalImagesInFolder = preservedTotalImages;
     
     // Optimize for large datasets: batch process markers in chunks
     const batchSize = 1000; // Process 1000 markers at a time to prevent UI freezing
@@ -534,7 +544,8 @@
     
     // Update statistics
     if (els.totalImagesCount) {
-      els.totalImagesCount.textContent = state.markers.length;
+      const totalImagesToDisplay = state.totalImagesInFolder ?? state.markers.length;
+      els.totalImagesCount.textContent = totalImagesToDisplay;
     }
     
     // Reset selected count to 0
@@ -566,6 +577,8 @@
       { lat: -33.8688, lng: 151.2093, name: "Sydney" },
       { lat: 37.7749, lng: -122.4194, name: "San Francisco" }
     ];
+    
+    state.totalImagesInFolder = sampleLocations.length;
     
     sampleLocations.forEach(location => {
       const marker = L.marker([location.lat, location.lng], { 

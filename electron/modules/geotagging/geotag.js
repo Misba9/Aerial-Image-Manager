@@ -211,24 +211,17 @@
     if (els.metaCsv) els.metaCsv.textContent = state.csv || '—';
   };
 
-  const computeStats = (items) => {
+  const buildStats = (items, provided = {}) => {
     const total = items.length;
-    let withGps = 0;
-    let writable = 0;
-    items.forEach((item) => {
-      if (item.hasGps) withGps += 1;
-      if (item.writable) writable += 1;
-    });
-    return {
-      total,
-      withGps,
-      missingGps: total - withGps,
-      writable
-    };
+    const withGps = provided.withGps ?? total;
+    const missingGps = provided.missingGps ?? 0;
+    const writable =
+      provided.writable ??
+      items.reduce((acc, item) => acc + (item && item.writable ? 1 : 0), 0);
+    return { total, withGps, missingGps, writable };
   };
 
-  const renderStats = (items) => {
-    const stats = computeStats(items);
+  const renderStats = (stats) => {
     if (els.statTotal) els.statTotal.textContent = stats.total;
     if (els.statWithGps) els.statWithGps.textContent = stats.withGps;
     if (els.statMissingGps) els.statMissingGps.textContent = stats.missingGps;
@@ -408,29 +401,30 @@
 
   const toItems = (list = []) =>
     list.map((raw) => {
+      const safe = raw || {};
       const filename =
-        raw.filename ||
-        raw.name ||
-        raw.file ||
-        (raw.path && raw.path.split(/[\\/]/).pop()) ||
+        safe.filename ||
+        safe.name ||
+        safe.file ||
+        (safe.path && safe.path.split(/[\\/]/).pop()) ||
         'image';
-      const path = raw.path || raw.filePath || raw.fullPath || filename;
-      const latitude = normalizeNumber(raw.latitude ?? raw.lat);
-      const longitude = normalizeNumber(raw.longitude ?? raw.lon);
-      const altitude = normalizeNumber(raw.altitude ?? raw.alt);
-      // const hasGps = Boolean(raw.hasGps ?? raw.gps ?? latitude !== null && longitude !== null);
-      const hasGps = Boolean(raw.hasGps ?? raw.gps ?? (latitude !== null && longitude !== null));
-      const writable = raw.writable !== false;
+      const path = safe.path || safe.filePath || safe.fullPath || filename;
+      const latitude = normalizeNumber(safe.latitude ?? safe.lat);
+      const longitude = normalizeNumber(safe.longitude ?? safe.lon);
+      const altitude = normalizeNumber(safe.altitude ?? safe.alt);
+      const coordsPresent = latitude !== null && longitude !== null;
+      const hasGps = coordsPresent ? true : Boolean(safe.hasGps ?? safe.gps);
+      const writable = safe.writable !== false;
       const exifStatus =
-        raw.exifStatus ||
+        safe.exifStatus ||
         (writable ? (hasGps ? 'OK' : 'NO_EXIF') : 'READ_ONLY');
       const camera =
-        raw.camera ||
-        [raw.make, raw.model].filter(Boolean).join(' ').trim() ||
+        safe.camera ||
+        [safe.make, safe.model].filter(Boolean).join(' ').trim() ||
         '';
       const dims =
-        raw.dimensions ||
-        (raw.width && raw.height ? `${raw.width}x${raw.height}` : '');
+        safe.dimensions ||
+        (safe.width && safe.height ? `${safe.width}x${safe.height}` : '');
 
       return {
         filename,
@@ -443,10 +437,27 @@
         exifStatus,
         camera,
         dimensions: dims,
-        timestamp: raw.timestamp || raw.time || '',
+        timestamp: safe.timestamp || safe.time || '',
         short: (filename.split(/[\\/]/).pop() || 'IMG').slice(0, 4).toUpperCase()
       };
     });
+
+  const applyScanResult = (data = {}) => {
+    const images = toItems(data.images || data.files || []);
+    const stats = buildStats(images, data.stats || {});
+    state.items = images;
+    state.filtered = images;
+    state.imageCount = images.length;
+    state.selected = null;
+    renderStats(stats);
+    clearGrid();
+    scheduleRenderMore();
+    updateFilteredCount();
+    setProcessed(stats.total, stats.total);
+    updateInspector(null);
+    log(`Parsed ${stats.total} images from extractor`, 'info');
+    return { images, stats };
+  };
 
   const handleSelectFolder = async () => {
     log('Attempting to select folder...', 'info');
@@ -513,21 +524,13 @@
         setProgress('Error', 'Scan failed', 100);
         return;
       }
-      const images = toItems(data.images || data.files || []);
-      state.items = images;
-      state.filtered = images;
-      state.imageCount = images.length;
-      renderStats(images);
-      clearGrid();
-      scheduleRenderMore();
-      updateFilteredCount();
-      setProcessed(images.length, images.length);
+      const { stats } = applyScanResult(data);
       stopProgressTicker();
-      setProgress('Completed', `${images.length} images`, 100);
-      log(`Scan complete: ${images.length} images`, 'success');
+      setProgress('Completed', `${stats.total} images`, 100);
+      log(`Scan complete: ${stats.total} images`, 'success');
       showToast('Scan completed', 'success');
-      if (images.length > state.pageSize) {
-        log(`Loaded ${images.length} images. Scroll to load thumbnails lazily.`, 'info');
+      if (stats.total > state.pageSize) {
+        log(`Loaded ${stats.total} images. Scroll to load thumbnails lazily.`, 'info');
       }
     });
     state.scanInFlight = false;
@@ -715,21 +718,13 @@
       window.api.onScanComplete((data) => {
         if (!data) return;
         stopProgressTicker();
-        const images = toItems(data.images || data.files || []);
-        state.items = images;
-        state.filtered = images;
-        state.imageCount = images.length;
-        renderStats(images);
-        clearGrid();
-        scheduleRenderMore();
-        updateFilteredCount();
-        setProcessed(images.length, images.length);
+        const { stats } = applyScanResult(data);
         setProgress(
           'Completed',
-          `Processing ${images.length} of ${images.length} (100%)`,
+          `Processing ${stats.total} of ${stats.total} (100%)`,
           100
         );
-        log(`Scan complete: ${images.length} images`, 'success');
+        log(`Scan complete: ${stats.total} images`, 'success');
       });
     }
   };

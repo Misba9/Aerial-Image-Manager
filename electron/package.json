@@ -1,24 +1,56 @@
 {
   "name": "shamal-tools",
-  "version": "0.1.0",
-  "productName": "Shamal Tools",
-  "private": true,
+  "version": "1.0.4",
+  "description": "Shamal Tools – Desktop Application",
+  "author": "Shamal Technologies",
   "main": "main.js",
   "scripts": {
-    "dev": "electron .",
-    "build:win": "electron-builder --config electron-builder.config.js --win portable",
-    "build:win-installer": "electron-builder --config electron-builder.config.js --win nsis"
-  },
-  "dependencies": {
-  },
-  "devDependencies": {
-    "electron": "^30.0.0",
-    "electron-builder": "^24.13.3",
-    "concurrently": "^8.2.2",
-    "cross-env": "^7.0.3"
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
   },
   "build": {
-    "extends": null
+    "appId": "com.shamal.tools",
+    "productName": "Shamal Tools",
+    "icon": "assets/shamal-tools-1.ico",
+    "asarUnpack": [
+      "python/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/shamal-tools-1.ico",
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "assets/shamal-tools-1.ico",
+      "uninstallerIcon": "assets/shamal-tools-1.ico",
+      "deleteAppDataOnUninstall": true,
+      "include": "build/installer.nsh",
+      "artifactName": "Shamal-Tools-${version}-Setup.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.3.0"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.6.2"
   }
 }
-

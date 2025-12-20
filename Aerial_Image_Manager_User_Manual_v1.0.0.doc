@@ -1,0 +1,500 @@
+# Shamal Tools
+## User Manual
+### Version 1.0.0
+
+---
+
+## 1. Cover Page
+
+# Shamal Tools
+## User Manual
+### Version 1.0.0
+
+**Shamal Technologies**  
+© 2025 Shamal Technologies. All rights reserved.
+
+This document contains proprietary information of Shamal Technologies. Unauthorized copying or distribution is prohibited.
+
+---
+
+## 2. Introduction
+
+### What is Shamal Tools?
+
+Shamal Tools is a powerful desktop application designed specifically for professionals who work with aerial imagery from drones, aircraft, or other flying devices. The application helps you organize, rename, and map your aerial images with ease.
+
+### Who Should Use It?
+
+This application is perfect for:
+- Surveyors and mapping professionals
+- Drone operators and pilots
+- Geographic Information Systems (GIS) teams
+- Field operations staff
+- Anyone who captures and manages large collections of aerial photographs
+
+### Key Benefits
+
+- **Simple to Use**: Clean, intuitive interface designed for non-technical users
+- **All-in-One Solution**: Three powerful tools in one application
+- **Offline Capability**: Works completely offline with no internet required
+- **Batch Processing**: Process hundreds or thousands of images at once
+- **Data Protection**: Never modifies your original images without permission
+
+---
+
+## 3. System Requirements
+
+### Supported Windows Versions
+
+- Windows 10 (64-bit) or newer
+- Windows 11 (64-bit) recommended
+
+### Hardware Requirements
+
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| Processor | Intel Core i3 or equivalent | Intel Core i5 or equivalent |
+| RAM | 4 GB | 8 GB or more |
+| Display | 1024×768 resolution | 1920×1080 resolution or higher |
+
+### Disk Space
+
+- **Installation Size**: 200 MB
+- **Working Space**: Depends on your image collection size
+- **Recommended Free Space**: 2 GB or more
+
+---
+
+## 4. Installation & Setup
+
+### How to Run the Application
+
+1. Download the installation file from our official website
+2. Double-click the downloaded file to begin installation
+3. Follow the on-screen instructions to complete setup
+4. Launch the application from your desktop or Start menu
+
+### First-Time Launch Instructions
+
+1. When you first open the application, you'll see the main dashboard
+2. No additional setup is required
+3. You can immediately start using any of the three tools
+
+### Administrator Permission Explanation
+
+Some operations may require administrator permissions:
+- Accessing system folders
+- Writing to protected directories
+- Modifying system settings
+
+If prompted, click "Yes" to allow the application to make necessary changes.
+
+### Folder Access Permissions
+
+The application needs permission to access the folders containing your images:
+- Read access to view and analyze images
+- Write access to save renamed or organized files
+- If you receive access denied errors, check folder permissions in Windows
+
+---
+
+## 5. Application Overview
+
+### Home Dashboard Explanation
+
+When you launch Shamal Tools, you'll see the main dashboard with three tool cards:
+
+1. **Smart Geotagging Tool** - Add or view GPS information in your images
+2. **Flight Renaming Tool** - Organize your images with structured names
+3. **Map Organizer Tool** - View and organize images on a map
+
+### Navigation Between Modules
+
+- Click any tool card to open that tool
+- Use the back arrow (←) in the top-left corner to return to the dashboard
+- You can have multiple tools open at the same time
+
+### Common Buttons and Actions
+
+Throughout the application, you'll see these common buttons:
+- **Select Folder** - Choose a folder containing your images
+- **Scan/Load** - Process the images in your selected folder
+- **Export** - Save your work to a new location
+- **Preview** - See what changes will be made before applying them
+
+### Status Messages and Progress Indicators
+
+The application shows real-time feedback:
+- Progress bars show how much work has been completed
+- Status messages explain what the application is doing
+- Statistics display counts of processed images
+
+---
+
+## 6. Module 1: Smart Geotagging Tool
+
+### Purpose of the Tool
+
+The Smart Geotagging Tool helps you:
+- View GPS coordinates stored in your images
+- Export GPS data to a spreadsheet file
+- Add GPS information to images that don't have it
+- Identify images missing location data
+
+### Supported Image Formats
+
+- JPEG/JPG (most common)
+- TIFF/TIF
+- Other formats with EXIF metadata support
+
+### Step-by-Step Usage
+
+#### 1. Selecting Image Folder
+
+1. Open the Smart Geotagging Tool from the dashboard
+2. Click the "Select folder" button
+3. Browse to and select the folder containing your images
+4. The application will show the selected folder path
+
+#### 2. Scanning Images
+
+1. After selecting a folder, click "Scan images"
+2. The application will analyze all images in the folder
+3. Progress bar shows scanning status
+4. Wait for scanning to complete
+
+#### 3. Identifying Images with and without GPS
+
+After scanning, you'll see statistics:
+- **Total**: Number of images found
+- **With GPS**: Images that already have location data
+- **Missing GPS**: Images without location data
+- **Writable**: Images that can be modified
+
+#### 4. Exporting GPS Data to CSV
+
+1. Click the "Export CSV" button
+2. Choose where to save the CSV file
+3. The file contains:
+   - Filename
+   - Latitude
+   - Longitude
+   - Altitude
+   - Timestamp
+
+#### 5. Writing GPS Data Back from CSV
+
+1. Click the "Import CSV" button
+2. Select a previously exported CSV file
+3. The application will add GPS data to images
+4. Only writable images will be modified
+
+### Expected Outputs
+
+- CSV files containing GPS data
+- Images with added GPS information
+- Detailed statistics about your image collection
+
+### Common Mistakes and How to Avoid Them
+
+1. **Processing wrong folder**: Always double-check the selected folder path
+2. **Not checking writable status**: Some images can't be modified due to file protection
+3. **Interrupting scans**: Let scans complete fully before taking other actions
+
+---
+
+## 7. Module 2: Flight Renaming Tool
+
+### Purpose of the Tool
+
+The Flight Renaming Tool helps you:
+- Give your images organized, professional names
+- Track which flight each image belongs to
+- Easily sort and find images later
+
+### Naming Format: Flight_XX_XXXX
+
+The standard naming format is:
+`Flight_[Flight Number]_[Image Number].extension`
+
+Example: `Flight_01_0001.jpg`
+
+### Step-by-Step Usage
+
+#### 1. Selecting Folder
+
+1. Open the Flight Renaming Tool
+2. Click "Select Folder"
+3. Choose the folder with images to rename
+
+#### 2. Entering Flight Number
+
+1. Enter the flight number in the "Flight Number" field
+2. The first image will start with this number
+3. Subsequent images will increment automatically
+
+#### 3. Previewing Rename Results
+
+1. Click the "Preview" button
+2. Review the table showing:
+   - Original filename
+   - New filename
+   - Flight number
+   - Image number
+
+#### 4. Executing Batch Rename
+
+1. Review the preview carefully
+2. Click "Apply Rename" to make changes permanent
+3. A confirmation message will appear when complete
+
+### Important Warnings (Overwrite Prevention)
+
+⚠️ **Important Safety Notes:**
+- The application creates backup information before renaming
+- Use the "Undo Last" button if you need to reverse changes
+- Always preview before applying changes
+- Original files remain untouched in their original location
+
+### Example Before & After Filenames
+
+| Before | After |
+|--------|-------|
+| DJI_0001.JPG | Flight_01_0001.jpg |
+| IMG_20230515_143022.jpg | Flight_01_0002.jpg |
+| PICT0003.BMP | Flight_01_0003.bmp |
+
+---
+
+## 8. Module 3: Map Organizer Tool
+
+### Purpose of the Tool
+
+The Map Organizer Tool helps you:
+- See where each image was captured on a real map
+- Select groups of images by drawing shapes on the map
+- Automatically organize selected images into folders
+- Export organized images for easy sharing
+
+### How Images Are Placed on the Map
+
+1. The application reads GPS data from your images
+2. Each image appears as a marker at its capture location
+3. Images without GPS won't appear on the map
+4. Zoom in/out to see different areas
+
+### Step-by-Step Usage
+
+#### 1. Importing Images
+
+1. Open the Map Organizer Tool
+2. Click "Select Image Folder"
+3. Choose the folder containing geotagged images
+4. Click "Load Images" to place them on the map
+
+#### 2. Viewing Locations on Map
+
+1. After loading, markers appear on the map
+2. Each marker represents one image
+3. Zoom and pan to explore different areas
+4. Click markers to see image details
+
+#### 3. Selecting Regions or Areas
+
+1. Use the drawing tools on the left side:
+   - Rectangle tool: Draw boxes around images
+   - Polygon tool: Draw custom shapes
+   - Circle tool: Draw circular selections
+2. Draw around the images you want to select
+3. Selected images will be highlighted
+
+#### 4. Auto-Organizing Images into Folders
+
+1. After selecting images, click "Export Selected Images"
+2. Choose where to save the organized folder
+3. The application creates:
+   - A new folder with your chosen name
+   - Subfolders for each selection
+   - Copies of selected images in appropriate folders
+
+#### 5. Exporting Organized Data
+
+1. During export, you can:
+   - Keep original filenames
+   - Rename files during export
+   - Add descriptive folder names
+2. The exported folder structure makes sharing easy
+
+### Offline Behavior Explanation
+
+- Maps work offline using pre-loaded map data
+- Internet is not required for basic mapping functions
+- Some advanced map features may require internet connection
+
+---
+
+## 9. Error Messages & Troubleshooting
+
+### Common Error Messages
+
+#### "No GPS data found"
+
+**Meaning**: None of the images in the selected folder contain GPS information.
+
+**How to Fix**:
+1. Check that your camera/drone was set to record GPS data
+2. Try a different folder with known geotagged images
+3. Use the Smart Geotagging Tool to add GPS data
+
+#### "Folder access denied"
+
+**Meaning**: The application doesn't have permission to access the selected folder.
+
+**How to Fix**:
+1. Check that the folder exists
+2. Verify you have read/write permissions for the folder
+3. Try running the application as administrator
+4. Move images to a different folder (like Documents or Desktop)
+
+#### "Invalid image format"
+
+**Meaning**: Some files in the folder aren't recognized image files.
+
+**How to Fix**:
+1. Ensure all files in the folder are valid images
+2. Remove non-image files from the folder
+3. Create a new folder with only image files
+
+#### "Operation cancelled"
+
+**Meaning**: You clicked cancel or the operation was interrupted.
+
+**How to Fix**:
+1. Restart the operation
+2. Don't close the application during processing
+3. Ensure your computer doesn't go to sleep during long operations
+
+---
+
+## 10. Best Practices
+
+### Recommended Workflow
+
+1. Start with the **Smart Geotagging Tool** to check GPS data
+2. Use the **Flight Renaming Tool** to organize filenames
+3. Finish with the **Map Organizer Tool** to group by location
+
+### Folder Organization Tips
+
+- Keep all images from one project in the same folder
+- Create separate folders for different flights or missions
+- Backup original images before processing
+- Use descriptive folder names
+
+### Performance Optimization Tips
+
+- Close other applications while processing large batches
+- Work with smaller batches (under 1000 images) when possible
+- Ensure adequate free disk space
+- Use SSD storage for best performance
+
+### Handling Large Datasets (10,000+ Images)
+
+- Process images in smaller groups
+- Ensure 8GB+ RAM for smooth operation
+- Allow extra time for processing
+- Monitor disk space during operations
+
+---
+
+## 11. Data Safety & Privacy
+
+### Offline Usage Assurance
+
+Shamal Tools works completely offline:
+- No internet connection required for any features
+- All processing happens on your computer
+- Your images never leave your device
+
+### No Internet Dependency
+
+- Maps work without internet connection
+- All tools function without online services
+- Updates are distributed as separate downloads
+
+### Local Data Processing Explanation
+
+- Images are processed directly on your computer
+- Metadata stays on your device
+- Temporary files are cleaned up automatically
+- No cloud storage or external servers involved
+
+---
+
+## 12. Frequently Asked Questions (FAQ)
+
+### Can I use this without internet?
+
+Yes! Shamal Tools works completely offline. No internet connection is required for any features.
+
+### What happens if an image has no GPS?
+
+Images without GPS data:
+- Won't appear on maps in the Map Organizer Tool
+- Will be counted in the "Missing GPS" statistic in the Geotagging Tool
+- Can still be renamed with the Flight Renaming Tool
+- Can have GPS added using the Geotagging Tool
+
+### Can I rename files multiple times?
+
+Yes, but:
+- Each rename creates a new set of filenames
+- Use the "Undo Last" feature to reverse the most recent rename
+- Original files remain unchanged in their original location
+
+### Does the app modify original images?
+
+No. By default:
+- Original images are never modified
+- New files are created during export operations
+- You control where new files are saved
+- Backup information allows undoing operations
+
+---
+
+## 13. Support & Contact Information
+
+### Shamal Technologies
+
+**Support Email**: support@shamaltech.com  
+**Phone**: +1-800-555-0123  
+**Working Hours**: Monday-Friday, 9:00 AM - 6:00 PM (EST)
+
+For immediate assistance with errors:
+1. Note the exact error message
+2. Take a screenshot if possible
+3. Include your Windows version
+4. Describe what you were doing when the error occurred
+
+---
+
+## 14. Legal & Disclaimer
+
+### Usage Rights
+
+This software is licensed, not sold. Shamal Technologies grants you a non-exclusive license to use this software on devices you own or control.
+
+### Redistribution Restrictions
+
+You may not:
+- Copy, distribute, or share this software without written permission
+- Sell or rent this software to others
+- Modify or reverse-engineer this software
+
+### Liability Disclaimer
+
+This software is provided "as is" without warranty of any kind. In no event shall Shamal Technologies be liable for any damages arising from the use of this software.
+
+---
+
+*End of User Manual*

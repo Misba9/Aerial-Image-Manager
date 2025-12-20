@@ -54,77 +54,54 @@ def iter_images(folder: Path) -> List[Path]:
     return imgs
 
 
-def pad_hashes(pattern: str, seq: int, min_width: int = 1) -> str:
-    out = pattern
-    while "#" in out:
-        idx = out.find("#")
-        end = idx
-        while end < len(out) and out[end] == "#":
-            end += 1
-        width = max(end - idx, min_width)
-        padded = str(seq).zfill(width)
-        out = out[:idx] + padded + out[end:]
-    return out
+def safe_int(value: Any, default: int) -> int:
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def build_name(options: Dict[str, Any], idx: int, ext: str, original: str, ts: str) -> Tuple[str, int, int]:
     pattern_raw = (options.get("pattern") or "").strip()
-    pattern = pattern_raw or "Flight_##_####"
-    
-    # Check if pattern matches the specific Flight_##_#### format (with or without .jpg extension)
-    flight_pattern_match = re.match(r"^Flight_##_####(?:\.jpg)?$", pattern, re.IGNORECASE)
-    if flight_pattern_match:
-        # Force the pattern to be exactly "Flight_##_####" without extension
-        pattern = "Flight_##_####"
-    
-    if pattern.count("#") < 2:
-        pattern = "Flight_##_####"
-    # Remove any extension from pattern to prevent duplicates
-    pattern_path = Path(pattern)
-    if pattern_path.suffix:
-        pattern = pattern_path.stem
     prefix = (options.get("prefix") or "").strip()
     suffix = (options.get("suffix") or "").strip()
-    start_flight = int(options.get("startFlight") or 1)
-    start_image = int(options.get("startImage") or 1)
+
+    # Support new configuration keys with backward compatibility to the old UI names.
+    flight_no = safe_int(options.get("flightNumber"), safe_int(options.get("startFlight"), 0))
+    start_image_no = safe_int(options.get("startImageNumber"), safe_int(options.get("startImage"), 1))
+    image_no = start_image_no + idx
+
     include_orig = bool(options.get("includeOriginal"))
     include_ts = bool(options.get("includeTimestamp"))
 
-    flight_no = start_flight + idx
-    image_no = start_image + idx
+    pattern_path = Path(pattern_raw)
+    pattern_ext = pattern_path.suffix
+    pattern_body = pattern_raw[:-len(pattern_ext)] if pattern_ext else pattern_raw
 
-    # Replace first hash group with flight, second with image (enforce min widths)
-    replaced = pattern
-    if "##" in replaced:
-        first_idx = replaced.find("#")
-        run = 0
-        while first_idx + run < len(replaced) and replaced[first_idx + run] == "#":
-            run += 1
-        width = max(run, 2)
-        replaced = replaced.replace("#" * run, str(flight_no).zfill(width), 1)
-    if "#" in replaced:
-        replaced = pad_hashes(replaced, image_no, min_width=4)
+    flight_str = str(flight_no).zfill(2)
+    image_str = str(image_no).zfill(4)
 
-    parts: List[str] = []
-    if prefix:
-        parts.append(prefix)
-    parts.append(replaced)
-    if suffix:
-        parts.append(suffix)
+    # Replace explicit placeholders while keeping the pattern flexible for future formats
+    replaced = pattern_body
+    replaced = re.sub(r"#{4}", image_str, replaced)
+    replaced = re.sub(r"#{2}", flight_str, replaced)
+
+    # Build name parts in a fixed, readable order:
+    # prefix/pattern → original (optional) → timestamp (optional) → suffix → extension
+    base_parts: List[str] = [f"{prefix}{replaced}"]
     if include_orig and original:
-        parts.append(Path(original).stem)
+        base_parts.append(Path(original).stem)
     if include_ts and ts:
-        parts.append(ts.replace(":", "").replace(" ", "_"))
+        base_parts.append(ts.replace(":", "").replace(" ", "_"))
 
-    name = "_".join([p for p in parts if p])
-    # For the Flight_##_#### pattern, always add .jpg extension
-    if flight_pattern_match and not name.lower().endswith('.jpg'):
-        return name + '.jpg', flight_no, image_no
-    # Avoid duplicate extensions - only add ext if name doesn't already end with it
-    elif name.lower().endswith(ext.lower()):
-        return name, flight_no, image_no
-    else:
-        return name + ext.lower(), flight_no, image_no
+    name_body = "_".join([p for p in base_parts if p])
+    if suffix:
+        name_body = f"{name_body}{suffix}"
+
+    extension = pattern_ext or ext
+    return f"{name_body}{extension}", flight_no, image_no
 
 
 def load_timestamp(img_path: Path) -> str:
@@ -208,13 +185,13 @@ def process(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     images = iter_images(src_path)
 
-    # Validate pattern: if user provided but missing hashes, flag error
+    # Validate pattern for operations that require it
     pattern_raw = (options.get("pattern") or "").strip()
-    if pattern_raw:
-        # Check if pattern matches the specific Flight_##_#### format (with or without .jpg extension)
-        flight_pattern_match = re.match(r"^Flight_##_####(?:\.jpg)?$", pattern_raw, re.IGNORECASE)
-        if not flight_pattern_match and pattern_raw.count("#") < 2:
-            return {"ok": False, "error": "Invalid pattern: must include flight (##) and image (####) placeholders"}
+    if mode != "scan":
+        if not pattern_raw:
+            return {"ok": False, "error": "Pattern is required"}
+        if "##" not in pattern_raw or "####" not in pattern_raw:
+            return {"ok": False, "error": "Invalid pattern: include ## for flight and #### for image"}
 
     if mode == "scan":
         files = [

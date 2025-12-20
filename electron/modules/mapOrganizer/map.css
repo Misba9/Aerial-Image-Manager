@@ -304,9 +304,6 @@ body {
 }
 
 /* Leaflet Draw toolbar polish to mirror zoom controls */
-.leaflet-draw-toolbar a {
-  border-radius: 6px;
-}
 
 .leaflet-draw-toolbar {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);

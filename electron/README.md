@@ -4,8 +4,8 @@
 
 ### Prerequisites
 - Node.js (version 16 or higher)
-- Python 3.8 or higher with Pillow library installed
 - Windows development environment
+- Bundled Python runtime prepared inside `shamalTools/python` (see below)
 
 ### Installation
 ```bash
@@ -16,6 +16,18 @@ npm install
 ```bash
 npm run dev
 ```
+
+### Bundled Python Runtime (no system Python required)
+1) Download the official **Windows x86-64 embeddable Python** (3.11.x) from python.org.  
+2) Extract the zip into `shamalTools/python/` so that `shamalTools/python/python.exe` exists.  
+3) Enable site packages in the embeddable distro by opening `python311._pth` (or matching version) in that folder and uncommenting the `import site` line.  
+4) Install required libraries into the bundled runtime:
+```bash
+# from repo root
+py -3.11 -m pip install --upgrade pip
+py -3.11 -m pip install --target shamalTools/python/Lib/site-packages -r shamalTools/python/requirements.txt
+```
+This bundles Pillow and any future dependencies directly into the shipped app.
 
 ### Building for Windows
 
@@ -38,13 +50,3 @@ npm run build:win-installer
 - Memory-safe marker handling
 - Optimized for Windows compatibility
 - DevTools disabled in production builds
-
-### Python Dependencies
-The application bundles Python scripts that require:
-- Pillow library for EXIF processing
-- Standard libraries: os, sys, json, pathlib, shutil, datetime
-
-Install Pillow with:
-```bash
-pip install Pillow
-```
