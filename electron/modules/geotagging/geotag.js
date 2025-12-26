@@ -28,6 +28,13 @@
     metaLat: qs('metaLat'),
     metaLon: qs('metaLon'),
     metaAlt: qs('metaAlt'),
+    metaOriTable: qs('metaOriTable'),
+    metaOriPhi: qs('metaOriPhi'),
+    metaOriAlpha: qs('metaOriAlpha'),
+    metaOriKappa: qs('metaOriKappa'),
+    metaPhi: qs('metaPhi'),
+    metaAlpha: qs('metaAlpha'),
+    metaKappa: qs('metaKappa'),
     metaTime: qs('metaTime'),
     metaCamera: qs('metaCamera'),
     metaDims: qs('metaDims'),
@@ -299,6 +306,12 @@
     writable.textContent = item.writable ? 'Writable' : 'Read-only';
     card.appendChild(writable);
 
+    const orientationPill = document.createElement('div');
+    const orientationHas = item.hasOrientation;
+    orientationPill.className = 'pill ' + (orientationHas ? 'purple' : '');
+    orientationPill.textContent = orientationHas ? 'Orientation' : 'No orientation';
+    card.appendChild(orientationPill);
+
     card.addEventListener('click', () => selectItem(item, card));
     ensureThumbObserver();
     thumbObserver.observe(img);
@@ -352,6 +365,12 @@
     if (els.metaLat) els.metaLat.textContent = fmt(item?.latitude);
     if (els.metaLon) els.metaLon.textContent = fmt(item?.longitude);
     if (els.metaAlt) els.metaAlt.textContent = safe(item?.altitude);
+    if (els.metaPhi) els.metaPhi.textContent = fmt(item?.phi);
+    if (els.metaAlpha) els.metaAlpha.textContent = fmt(item?.alpha);
+    if (els.metaKappa) els.metaKappa.textContent = fmt(item?.kappa);
+    if (els.metaOriPhi) els.metaOriPhi.textContent = fmt(item?.phi);
+    if (els.metaOriAlpha) els.metaOriAlpha.textContent = fmt(item?.alpha);
+    if (els.metaOriKappa) els.metaOriKappa.textContent = fmt(item?.kappa);
     if (els.metaTime) els.metaTime.textContent = safe(item?.timestamp);
     if (els.metaCamera) els.metaCamera.textContent = safe(item?.camera);
     if (els.metaDims) els.metaDims.textContent = safe(item?.dimensions);
@@ -412,6 +431,10 @@
       const latitude = normalizeNumber(safe.latitude ?? safe.lat);
       const longitude = normalizeNumber(safe.longitude ?? safe.lon);
       const altitude = normalizeNumber(safe.altitude ?? safe.alt);
+      const phi = normalizeNumber(safe.phi);
+      const alpha = normalizeNumber(safe.alpha);
+      const kappa = normalizeNumber(safe.kappa);
+      const hasOrientation = [phi, alpha, kappa].some((v) => v !== null);
       const coordsPresent = latitude !== null && longitude !== null;
       const hasGps = coordsPresent ? true : Boolean(safe.hasGps ?? safe.gps);
       const writable = safe.writable !== false;
@@ -433,6 +456,10 @@
         latitude,
         longitude,
         altitude,
+        phi,
+        alpha,
+        kappa,
+        hasOrientation,
         writable,
         exifStatus,
         camera,
@@ -554,7 +581,7 @@
     const csvPath = saveRes.path;
     await withBusy(els.exportCsvBtn, async () => {
       setProgress('Exporting CSV...', '', 30);
-      log('Exporting GPS to CSV...', 'info');
+      log('Exporting GPS + orientation to CSV...', 'info');
       const res = await safeInvoke(
         () =>
           window.api.extractGeotag({

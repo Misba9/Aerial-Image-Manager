@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
+from datetime import datetime
 
 
 def convert_to_degrees(value):
@@ -86,6 +87,30 @@ def get_gps_info(exif_data):
     return lat, lon
 
 
+def get_capture_timestamp(exif_data):
+    """
+    Extract capture timestamp from EXIF if available.
+    Returns an ISO 8601 string or None.
+    """
+    if not exif_data:
+        return None
+    ts_raw = None
+    for tag, value in exif_data.items():
+        tag_name = TAGS.get(tag, tag)
+        if tag_name in ("DateTimeOriginal", "DateTime"):
+            ts_raw = value
+            break
+    if not ts_raw or not isinstance(ts_raw, str):
+        return None
+    try:
+        # EXIF format: "YYYY:MM:DD HH:MM:SS"
+        ts_clean = ts_raw.strip().replace(":", "-", 2)
+        dt = datetime.strptime(ts_clean, "%Y-%m-%d %H:%M:%S")
+        return dt.isoformat()
+    except Exception:
+        return None
+
+
 def scan_images_for_gps(folder_path):
     """
     Scan folder for image files and extract GPS coordinates
@@ -151,6 +176,7 @@ def process_batch(batch, geotagged_images):
                 
                 # Extract GPS info
                 lat, lon = get_gps_info(exif_data)
+                timestamp = get_capture_timestamp(exif_data)
                 
                 # If GPS data exists, add to results
                 if lat is not None and lon is not None:
@@ -158,7 +184,8 @@ def process_batch(batch, geotagged_images):
                         'filename': file,
                         'filepath': file_path,
                         'latitude': lat,
-                        'longitude': lon
+                        'longitude': lon,
+                        'timestamp': timestamp
                     })
         except Exception as e:
             # Skip files that can't be processed

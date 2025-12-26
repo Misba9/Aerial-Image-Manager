@@ -407,6 +407,27 @@ button {
   padding-right: 4px;
 }
 
+.image-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.image-grid::-webkit-scrollbar-thumb {
+  background: rgba(15, 24, 40, 0.16);
+  border-radius: 8px;
+}
+
+.image-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.image-grid-empty {
+  grid-column: 1 / -1;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .image-card {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -495,6 +516,11 @@ button {
   border-color: rgba(29, 143, 206, 0.3);
 }
 
+.pill.purple {
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.35);
+}
+
 .inspector {
   display: flex;
   flex-direction: column;
@@ -531,6 +557,25 @@ button {
   background: #f8fafc;
   min-height: 34px;
   word-break: break-all;
+}
+
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.mini-table th,
+.mini-table td {
+  border: 1px solid var(--border);
+  padding: 6px;
+  text-align: center;
+}
+
+.mini-table th {
+  background: #eef2ff;
+  color: var(--text);
+  font-weight: 700;
 }
 
 [dir="rtl"] .crumbs {

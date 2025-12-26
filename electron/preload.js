@@ -29,11 +29,13 @@ contextBridge.exposeInMainWorld('api', {
   copySelectedImages: (payload) => safeInvoke('map:copy-selected', payload),
   exportImages: (payload) => safeInvoke('map:export-images', payload),
   mapLoader: (payload) => safeInvoke('map:load', payload),
+  importKml: (payload) => safeInvoke('map:import-kml', payload),
   changeLanguage: (locale) => safeInvoke('i18n:set-language', { locale }),
   openFolder: (path) => safeInvoke('open-folder', { path }),
   onGeotagProgress: (handler) => onChannel('geotag:progress', handler),
   onScanProgress: (handler) => onChannel('geotag:scan-progress', handler),
-  onScanComplete: (handler) => onChannel('geotag:scan-complete', handler)
+  onScanComplete: (handler) => onChannel('geotag:scan-complete', handler),
+  onMenuAction: (handler) => onChannel('menu-action', handler)
 });
 
 contextBridge.exposeInMainWorld('electronAPI', {

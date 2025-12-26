@@ -9,14 +9,14 @@ Input JSON via argv[1]:
   "recursive": bool
 }
 
-CSV columns (positional, no header required):
-col0: image name (required)
+CSV columns (case-insensitive header supported; positional fallback):
+col0: filename (required)
 col1: latitude (required)
 col2: longitude (required)
 col3: altitude (optional)
-col4: yaw/heading (optional)
-col7: pitch (optional)
-col8: roll (optional)
+col4: phi (optional)
+col5: alpha (optional)
+col6: kappa (optional)
 
 Output JSON:
 {
@@ -33,6 +33,9 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+ORIENTATION_JSON_KEY = "camera_orientation"
+XMP_NAMESPACE = "http://shamal.tools/ns/cameraorientation/1.0/"
 
 
 def parse_args() -> Dict[str, Any]:
@@ -85,21 +88,37 @@ def build_gps_ifd(lat: float, lon: float, alt: Optional[float]) -> Dict[int, Any
 def load_csv(csv_path: Path) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     rows: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
+    header_map: Optional[Dict[str, int]] = None
+    allowed_headers = {"filename", "image_name", "latitude", "longitude", "altitude", "phi", "alpha", "kappa"}
     with csv_path.open(newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         for idx, row in enumerate(reader, start=1):
             if not row or all((cell or "").strip() == "" for cell in row):
                 continue
-            img_name = (row[0] or "").strip()
-            lat_raw = (row[1] or "").strip() if len(row) > 1 else ""
-            lon_raw = (row[2] or "").strip() if len(row) > 2 else ""
-            alt_raw = (row[3] or "").strip() if len(row) > 3 else ""
-            yaw_raw = (row[4] or "").strip() if len(row) > 4 else ""
-            pitch_raw = (row[7] or "").strip() if len(row) > 7 else ""
-            roll_raw = (row[8] or "").strip() if len(row) > 8 else ""
-            # Skip a header row silently if detected
-            if idx == 1 and lat_raw.lower().startswith("lat") and lon_raw.lower().startswith("lon"):
-                continue
+            if header_map is None:
+                lowered = [(cell or "").strip().lower() for cell in row]
+                detected = {name: i for i, name in enumerate(lowered) if name in allowed_headers}
+                # If this first non-empty row looks like a header, record mapping and continue
+                if {"filename", "latitude", "longitude"}.issubset(detected.keys()) or {"image_name", "latitude", "longitude"}.issubset(detected.keys()):
+                    header_map = detected
+                    continue
+                header_map = {}
+
+            def pick(name: str, pos: int) -> str:
+                if header_map:
+                    idx = header_map.get(name)
+                    if idx is not None and idx < len(row):
+                        return (row[idx] or "").strip()
+                return (row[pos] or "").strip() if len(row) > pos else ""
+
+            img_name = pick("filename", 0) or pick("image_name", 0)
+            lat_raw = pick("latitude", 1)
+            lon_raw = pick("longitude", 2)
+            alt_raw = pick("altitude", 3)
+            phi_raw = pick("phi", 4)
+            alpha_raw = pick("alpha", 5)
+            kappa_raw = pick("kappa", 6)
+
             rows.append(
                 {
                     "_row": idx,
@@ -107,9 +126,9 @@ def load_csv(csv_path: Path) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]
                     "latitude": lat_raw,
                     "longitude": lon_raw,
                     "altitude": alt_raw,
-                    "yaw": yaw_raw,
-                    "pitch": pitch_raw,
-                    "roll": roll_raw,
+                    "phi": phi_raw,
+                    "alpha": alpha_raw,
+                    "kappa": kappa_raw,
                 }
             )
     return rows, errors
@@ -138,7 +157,91 @@ def iter_images(folder: Path, recursive: bool) -> List[Path]:
     return images
 
 
-def write_gps_to_image(path: Path, piexif_mod, lat: float, lon: float, alt: Optional[float]) -> Tuple[bool, Optional[str]]:
+def decode_user_comment(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        try:
+            prefix = raw[:8]
+            if prefix in {b"ASCII\x00\x00\x00", b"UNICODE\x00", b"UNICODE\x00"}:
+                payload = raw[8:]
+                try:
+                    return payload.decode("utf-8", errors="ignore")
+                except Exception:
+                    try:
+                        return payload.decode("utf-16", errors="ignore")
+                    except Exception:
+                        pass
+            return raw.decode("utf-8", errors="ignore")
+        except Exception:
+            return None
+    try:
+        return str(raw)
+    except Exception:
+        return None
+
+
+def format_orientation_json(phi: Optional[float], alpha: Optional[float], kappa: Optional[float]) -> Optional[str]:
+    payload = {}
+    if phi is not None:
+        payload["phi"] = phi
+    if alpha is not None:
+        payload["alpha"] = alpha
+    if kappa is not None:
+        payload["kappa"] = kappa
+    if not payload:
+        return None
+    return json.dumps(payload, separators=(",", ":"))
+
+
+def encode_user_comment(text: str, piexif_mod) -> Any:
+    try:
+        # piexif.helper creates correctly-prefixed UserComment bytes
+        return piexif_mod.helper.UserComment.dump(text)
+    except Exception:
+        return text.encode("utf-8", errors="ignore")
+
+
+def apply_orientation(
+    exif_dict: Dict[str, Any], piexif_mod, phi: Optional[float], alpha: Optional[float], kappa: Optional[float]
+) -> None:
+    comment = format_orientation_json(phi, alpha, kappa)
+    if not comment:
+        return
+    existing = None
+    try:
+        existing = exif_dict.get("Exif", {}).get(piexif_mod.ExifIFD.UserComment)
+    except Exception:
+        existing = None
+    # Always overwrite orientation blob to keep it current
+    exif_dict.setdefault("Exif", {})[piexif_mod.ExifIFD.UserComment] = encode_user_comment(comment, piexif_mod)
+
+
+def build_xmp_packet(phi: Optional[float], alpha: Optional[float], kappa: Optional[float]) -> Optional[str]:
+    if phi is None and alpha is None and kappa is None:
+        return None
+    tmpl = f'''<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description xmlns:sgco="{XMP_NAMESPACE}">
+      {'' if phi is None else f'<sgco:Phi>{phi}</sgco:Phi>'}
+      {'' if alpha is None else f'<sgco:Alpha>{alpha}</sgco:Alpha>'}
+      {'' if kappa is None else f'<sgco:Kappa>{kappa}</sgco:Kappa>'}
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>'''
+    return tmpl
+
+
+def write_gps_to_image(
+    path: Path,
+    piexif_mod,
+    lat: float,
+    lon: float,
+    alt: Optional[float],
+    orientation: Tuple[Optional[float], Optional[float], Optional[float]],
+) -> Tuple[bool, Optional[str]]:
     try:
         exif_dict = piexif_mod.load(str(path))
     except Exception:
@@ -146,8 +249,19 @@ def write_gps_to_image(path: Path, piexif_mod, lat: float, lon: float, alt: Opti
     try:
         gps_ifd = build_gps_ifd(lat, lon, alt)
         exif_dict["GPS"] = gps_ifd
+        phi, alpha, kappa = orientation
+        apply_orientation(exif_dict, piexif_mod, phi, alpha, kappa)
         exif_bytes = piexif_mod.dump(exif_dict)
         piexif_mod.insert(exif_bytes, str(path))
+        # Preferred: write XMP sidecar with custom namespace
+        xmp_packet = build_xmp_packet(phi, alpha, kappa)
+        if xmp_packet:
+            try:
+                sidecar = path.with_suffix(path.suffix + ".xmp")
+                sidecar.write_text(xmp_packet, encoding="utf-8")
+            except Exception:
+                # If sidecar fails, silently continue; UserComment still has JSON payload
+                pass
         return True, None
     except Exception:
         return False, "piexif insert failed"
@@ -192,6 +306,7 @@ def main():
     skipped = 0
     total_rows = len(rows)
     errors: List[Dict[str, Any]] = list(load_errors)
+    logs: List[Dict[str, Any]] = []
 
     for row in rows:
         name_raw = (row.get("image_name") or "").strip()
@@ -199,9 +314,9 @@ def main():
         lat_raw = (row.get("latitude") or "").strip()
         lon_raw = (row.get("longitude") or "").strip()
         alt_raw = (row.get("altitude") or "").strip()
-        yaw_raw = (row.get("yaw") or "").strip()
-        pitch_raw = (row.get("pitch") or "").strip()
-        roll_raw = (row.get("roll") or "").strip()
+        phi_raw = (row.get("phi") or "").strip()
+        alpha_raw = (row.get("alpha") or "").strip()
+        kappa_raw = (row.get("kappa") or "").strip()
 
         # Name check
         if name == "":
@@ -223,40 +338,73 @@ def main():
         lat = normalize_float(lat_raw)
         lon = normalize_float(lon_raw)
         alt = normalize_float(alt_raw) if alt_raw != "" else None
-        # Optional orientation; parse but do not warn on invalid/missing
-        _yaw = normalize_float(yaw_raw) if yaw_raw else None
-        _pitch = normalize_float(pitch_raw) if pitch_raw else None
-        _roll = normalize_float(roll_raw) if roll_raw else None
+        # Optional orientation; parse but do not warn on missing; warn on invalid
+        phi = normalize_float(phi_raw) if phi_raw else None
+        alpha = normalize_float(alpha_raw) if alpha_raw else None
+        kappa = normalize_float(kappa_raw) if kappa_raw else None
 
         if lat is None:
             skipped += 1
             errors.append({"row": row.get("_row", "?"), "reason": "Invalid latitude"})
+            logs.append({"row": row.get("_row", "?"), "image": name_raw, "success": False, "reason": "Invalid latitude"})
             continue
         if lon is None:
             skipped += 1
             errors.append({"row": row.get("_row", "?"), "reason": "Invalid longitude"})
+            logs.append({"row": row.get("_row", "?"), "image": name_raw, "success": False, "reason": "Invalid longitude"})
             continue
+        if not (-90.0 <= lat <= 90.0):
+            skipped += 1
+            errors.append({"row": row.get("_row", "?"), "reason": "Latitude out of range"})
+            logs.append({"row": row.get("_row", "?"), "image": name_raw, "success": False, "reason": "Latitude out of range"})
+            continue
+        if not (-180.0 <= lon <= 180.0):
+            skipped += 1
+            errors.append({"row": row.get("_row", "?"), "reason": "Longitude out of range"})
+            logs.append({"row": row.get("_row", "?"), "image": name_raw, "success": False, "reason": "Longitude out of range"})
+            continue
+        orientation_warnings: List[str] = []
+        if phi_raw and phi is None:
+            orientation_warnings.append("Invalid phi")
+        if alpha_raw and alpha is None:
+            orientation_warnings.append("Invalid alpha")
+        if kappa_raw and kappa is None:
+            orientation_warnings.append("Invalid kappa")
+        # If invalid orientation values were provided, drop them but keep GPS write
+        if phi is None:
+            phi = None
+        if alpha is None:
+            alpha = None
+        if kappa is None:
+            kappa = None
         img_path = image_map.get(name)
         if not img_path:
             skipped += 1
             errors.append({"row": row.get("_row", "?"), "reason": f"Image not found for {name_raw}"})
+            logs.append({"row": row.get("_row", "?"), "image": name_raw, "success": False, "reason": "Image not found"})
             continue
         if not os.access(img_path, os.W_OK):
             skipped += 1
             errors.append({"row": row.get("_row", "?"), "reason": f"Read-only file skipped: {img_path}"})
+            logs.append({"row": row.get("_row", "?"), "image": name_raw, "success": False, "reason": "Read-only file"})
             continue
-        success, err = write_gps_to_image(img_path, piexif_mod, lat, lon, alt)
+        orientation = (phi, alpha, kappa)
+        success, err = write_gps_to_image(img_path, piexif_mod, lat, lon, alt, orientation)
         if success:
             updated += 1
+            reason = "; ".join(orientation_warnings) if orientation_warnings else "OK"
+            logs.append({"row": row.get("_row", "?"), "image": name_raw, "success": True, "reason": reason})
         else:
             skipped += 1
             errors.append({"row": row.get("_row", "?"), "reason": f"Failed to write GPS for {img_path}: {err or 'unknown error'}"})
+            logs.append({"row": row.get("_row", "?"), "image": name_raw, "success": False, "reason": err or "write failed"})
 
     result = {
         "processed": total_rows,
         "updated": updated,
         "skipped": skipped,
         "errors": errors,
+        "logs": logs,
     }
     print(json.dumps(result, ensure_ascii=False))
 

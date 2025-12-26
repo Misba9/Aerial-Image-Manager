@@ -11,7 +11,68 @@ from datetime import datetime
 from pathlib import Path
 
 
-def export_images(source_paths, destination_folder):
+INVALID_CHARS = '<>:"/\\|?*'
+
+
+def _sanitize_polygon_name(name: str) -> str:
+    """
+    Clean a single polygon name for safe folder usage.
+    Rules:
+    - Convert to string
+    - Trim whitespace
+    - Lowercase
+    - Replace spaces with underscores
+    - Remove illegal filesystem characters
+    - Collapse multiple underscores
+    - Limit to 40 characters
+    """
+    raw = '' if name is None else str(name)
+    cleaned = raw.strip().lower()
+    if not cleaned:
+        return ''
+    cleaned = cleaned.replace(' ', '_')
+    cleaned = ''.join('_' if ch in INVALID_CHARS else ch for ch in cleaned)
+    cleaned = ''.join(ch for ch in cleaned if (ch.isalnum() or ch == '_'))
+    while '__' in cleaned:
+        cleaned = cleaned.replace('__', '_')
+    cleaned = cleaned.strip('_')
+    cleaned = cleaned[:40]
+    return cleaned
+
+
+def make_export_folder_name(names):
+    """
+    Derive an export folder name from selected polygon names.
+    Accepts a single string or an iterable of names.
+    Returns the joined, sanitized name (max 120 chars) or None if none are valid.
+    """
+    if names is None:
+        return None
+
+    # Normalize input to list
+    if isinstance(names, str):
+        names_list = [names]
+    else:
+        try:
+            names_list = list(names)
+        except Exception:
+            names_list = []
+
+    sanitized = []
+    for n in names_list:
+        sn = _sanitize_polygon_name(n)
+        if sn:
+            sanitized.append(sn)
+
+    if not sanitized:
+        return None
+
+    folder = '_'.join(sanitized)
+    folder = folder[:120]
+    return folder
+
+
+def export_images(source_paths, destination_folder, export_label=None):
     """
     Export selected images to a new folder with timestamp-based naming.
     Handles large datasets efficiently by processing in batches.
@@ -39,9 +100,10 @@ def export_images(source_paths, destination_folder):
         if not os.access(dest_path, os.W_OK):
             return {"success": False, "error": "Destination folder is not writable"}
         
-        # Create timestamp for folder name
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        export_folder_name = f"Exported_Region_{timestamp}"
+        # Create folder name (use polygon names list or string)
+        export_folder_name = make_export_folder_name(export_label)
+        if not export_folder_name:
+            return {"success": False, "error": "No exportable polygon names provided"}
         export_folder_path = dest_path / export_folder_name
         
         # Create the export folder
@@ -123,9 +185,10 @@ def main():
         # Extract parameters
         source_paths = input_data.get("sourcePaths", [])
         destination_folder = input_data.get("destination", "")
+        export_label = input_data.get("exportLabel") or input_data.get("exportName")
         
         # Execute export
-        result = export_images(source_paths, destination_folder)
+        result = export_images(source_paths, destination_folder, export_label)
         
         # Output result as JSON
         print(json.dumps(result))

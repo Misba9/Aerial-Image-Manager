@@ -17,7 +17,316 @@
     selectedImages: [],
     selectionCountElement: null,
     isLoading: false,
-    totalImagesInFolder: 0
+    totalImagesInFolder: 0,
+    polygons: [],
+    polygonCounter: 1,
+    polygonColorPalette: ['#2563eb', '#16a34a', '#f97316', '#ef4444', '#a855f7', '#14b8a6', '#f59e0b', '#ec4899'],
+    polygonColorIndex: 0,
+    markerLabelOffsetIndex: 0,
+    hoverPopup: null,
+    flightPathLayer: null,
+    currentPathPoints: [],
+    importedKmlLayers: []
+  };
+
+  // Circle marker styles
+  const markerDefaultStyle = {
+    radius: 5,
+    color: '#0f60c4',
+    weight: 1.5,
+    fillColor: '#0f60c4',
+    fillOpacity: 0.8,
+    opacity: 0.9
+  };
+
+  const markerSelectedStyle = {
+    radius: 6,
+    color: '#16a34a',
+    weight: 2,
+    fillColor: '#16a34a',
+    fillOpacity: 0.9,
+    opacity: 1
+  };
+
+  const markerRegionStyle = {
+    radius: 6,
+    color: '#16a34a',
+    weight: 2,
+    fillColor: '#16a34a',
+    fillOpacity: 0.6,
+    opacity: 1
+  };
+
+  const getNextLabelOffset = () => {
+    // Cycle through a few offsets to reduce label overlap
+    const presets = [
+      [0, -10],
+      [8, -6],
+      [-8, -6],
+      [0, -14]
+    ];
+    const offset = presets[state.markerLabelOffsetIndex % presets.length];
+    state.markerLabelOffsetIndex += 1;
+    return offset;
+  };
+
+  const ensureHoverPopup = () => {
+    if (!state.hoverPopup) {
+      state.hoverPopup = L.popup({
+        closeButton: false,
+        autoClose: false,
+        closeOnClick: false,
+        className: 'marker-hover-popup',
+        offset: [0, -8],
+        maxWidth: 260
+      });
+    }
+    return state.hoverPopup;
+  };
+
+  const buildImageSrc = (filepath) => {
+    if (!filepath) return null;
+    try {
+      const normalized = filepath.replace(/\\/g, '/');
+      return `file://${normalized}`;
+    } catch (_err) {
+      return null;
+    }
+  };
+
+  const showMarkerHover = (marker, point) => {
+    if (!state.map) return;
+    const popup = ensureHoverPopup();
+    const coords = marker.getLatLng();
+    const imgSrc = buildImageSrc(point.filepath);
+    const name = point.filename || 'Unknown';
+    const content = `
+      <div class="hover-card">
+        ${imgSrc ? `<div class="hover-img-wrap"><img src="${imgSrc}" alt="${name}" /></div>` : ''}
+        <div class="hover-meta">
+          <div class="hover-name">${name}</div>
+          <div class="hover-coords">Lat: ${coords.lat.toFixed(6)}, Lng: ${coords.lng.toFixed(6)}</div>
+        </div>
+      </div>
+    `;
+    popup.setLatLng(coords).setContent(content);
+    popup.openOn(state.map);
+  };
+
+  const sortGpsData = (data = []) => {
+    return [...data].sort((a, b) => {
+      const parseTs = (item) => {
+        const raw = item?.timestamp || item?.time || item?.datetime;
+        const t = Date.parse(raw || '');
+        return Number.isFinite(t) ? t : null;
+      };
+      const ta = parseTs(a);
+      const tb = parseTs(b);
+
+      if (ta !== null && tb !== null && ta !== tb) {
+        return ta - tb;
+      }
+      if (ta !== null && tb === null) return -1;
+      if (ta === null && tb !== null) return 1;
+
+      const fa = (a?.filename || '').toLowerCase();
+      const fb = (b?.filename || '').toLowerCase();
+      if (fa !== fb) {
+        return fa.localeCompare(fb, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return 0;
+    });
+  };
+
+  const hideMarkerHover = () => {
+    if (state.hoverPopup && state.map) {
+      state.map.closePopup(state.hoverPopup);
+    }
+  };
+
+  const clearImportedKml = () => {
+    if (state.importedKmlLayers.length && state.map) {
+      state.importedKmlLayers.forEach((layer) => {
+        if (state.map.hasLayer(layer)) {
+          state.map.removeLayer(layer);
+        }
+      });
+    }
+    state.importedKmlLayers = [];
+  };
+
+  const parseKmlCoordinates = (coordText) => {
+    if (!coordText) return [];
+    return coordText
+      .trim()
+      .split(/\s+/)
+      .map((pair) => {
+        const parts = pair.split(',');
+        if (parts.length < 2) return null;
+        const lng = parseFloat(parts[0]);
+        const lat = parseFloat(parts[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return [lat, lng];
+      })
+      .filter(Boolean);
+  };
+
+  const addKmlPolygon = (latlngs, name = 'KML Polygon') => {
+    if (!latlngs || latlngs.length < 3 || !state.map || !state.drawnItems) return null;
+    const color = getNextPolygonColor();
+    const layer = L.polygon(latlngs, {
+      color,
+      weight: 2,
+      fillOpacity: 0.15,
+      opacity: 0.9,
+      renderer: state.renderer || state.map?.options?.renderer
+    });
+    state.drawnItems.addLayer(layer);
+    addPolygonRecord(layer, 'polygon');
+    if (layer.bindTooltip) {
+      layer.bindTooltip(name, { direction: 'center', className: 'marker-label', permanent: false });
+    }
+    state.importedKmlLayers.push(layer);
+    return layer;
+  };
+
+  const addKmlPath = (latlngs, name = 'KML Path') => {
+    if (!latlngs || latlngs.length < 2 || !state.map) return null;
+    const layer = L.polyline(latlngs, {
+      color: '#ef4444',
+      weight: 2,
+      opacity: 0.9,
+      dashArray: '6 4',
+      interactive: false,
+      renderer: state.renderer || state.map?.options?.renderer
+    }).addTo(state.map);
+    if (layer.bindTooltip) {
+      layer.bindTooltip(name, { direction: 'auto', className: 'marker-label', permanent: false });
+    }
+    state.importedKmlLayers.push(layer);
+    return layer;
+  };
+
+  const importKmlFlow = async () => {
+    try {
+      // Let user pick a KML file
+      const res = await (window.api?.selectFiles?.() || Promise.resolve({ files: [] }));
+      const filePath = Array.isArray(res?.files) ? res.files.find((p) => p.toLowerCase().endsWith('.kml')) : null;
+      if (!filePath) {
+        showToast('Please select a KML file', 'warning');
+        return;
+      }
+
+      // Read KML content via IPC
+      let readResult = null;
+      if (window.electronAPI?.importKml) {
+        readResult = await window.electronAPI.importKml({ path: filePath });
+      } else if (window.api?.importKml) {
+        readResult = await window.api.importKml({ path: filePath });
+      }
+
+      if (!readResult || !readResult.ok) {
+        showToast(readResult?.error || 'Failed to load KML file', 'error');
+        return;
+      }
+
+      importKmlText(readResult.data);
+      showToast('KML imported successfully', 'success');
+    } catch (err) {
+      showToast(`KML import failed: ${err?.message || err}`, 'error');
+    }
+  };
+
+  const importKmlText = (kmlText) => {
+    if (!kmlText || !state.map) {
+      showToast('Invalid or empty KML content', 'warning');
+      return;
+    }
+    clearImportedKml();
+    const parser = new DOMParser();
+    let xml = null;
+    try {
+      xml = parser.parseFromString(kmlText, 'text/xml');
+      const parserError = xml.getElementsByTagName('parsererror');
+      if (parserError && parserError.length) {
+        showToast('Failed to parse KML file', 'error');
+        return;
+      }
+    } catch (_err) {
+      showToast('Failed to parse KML file', 'error');
+      return;
+    }
+    const polygons = Array.from(xml.getElementsByTagName('Polygon'));
+    const lines = Array.from(xml.getElementsByTagName('LineString'));
+    const addedLayers = [];
+
+    polygons.forEach((polyNode, idx) => {
+      const coordsNode = polyNode.getElementsByTagName('coordinates')[0];
+      if (!coordsNode || !coordsNode.textContent) return;
+      const latlngs = parseKmlCoordinates(coordsNode.textContent);
+      const layer = addKmlPolygon(latlngs, `KML Polygon ${idx + 1}`);
+      if (layer) addedLayers.push(layer);
+    });
+
+    lines.forEach((lineNode, idx) => {
+      const coordsNode = lineNode.getElementsByTagName('coordinates')[0];
+      if (!coordsNode || !coordsNode.textContent) return;
+      const latlngs = parseKmlCoordinates(coordsNode.textContent);
+      const layer = addKmlPath(latlngs, `KML Path ${idx + 1}`);
+      if (layer) addedLayers.push(layer);
+    });
+
+    if (addedLayers.length) {
+      const group = L.featureGroup(addedLayers);
+      state.map.fitBounds(group.getBounds().pad(0.1));
+    } else {
+      showToast('No supported KML geometries found', 'warning');
+    }
+  };
+
+  const clearFlightPath = () => {
+    if (state.flightPathLayer && state.map) {
+      state.map.removeLayer(state.flightPathLayer);
+    }
+    state.flightPathLayer = null;
+  };
+
+  const buildFlightPath = (points = []) => {
+    clearFlightPath();
+    if (!state.map || points.length < 2) return;
+
+    const latlngs = points.map((p) => [p.lat, p.lng]);
+    const pathColor = '#0f60c4';
+
+    const line = L.polyline(latlngs, {
+      color: pathColor,
+      weight: 2.5,
+      opacity: 0.7,
+      interactive: false,
+      renderer: state.renderer || state.map?.options?.renderer
+    });
+
+    const arrowLayer = L.layerGroup();
+    for (let i = 0; i < latlngs.length - 1; i++) {
+      const [lat1, lng1] = latlngs[i];
+      const [lat2, lng2] = latlngs[i + 1];
+      const mid = [(lat1 + lat2) / 2, (lng1 + lng2) / 2];
+      const angle = Math.atan2(lat2 - lat1, lng2 - lng1) * (180 / Math.PI);
+      const arrow = L.marker(mid, {
+        interactive: false,
+        icon: L.divIcon({
+          className: 'path-arrow',
+          html: `<div style="transform: rotate(${angle}deg);">➤</div>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        })
+      });
+      arrowLayer.addLayer(arrow);
+    }
+
+    const group = L.layerGroup([line, arrowLayer]);
+    group.addTo(state.map);
+    state.flightPathLayer = group;
   };
 
   // Logging is intentionally silenced in production to avoid console noise
@@ -131,7 +440,9 @@
     }
     
     if (els.exportImagesBtn) {
-      els.exportImagesBtn.disabled = state.selectedImages.length === 0;
+      const hasSelectedImages = state.selectedImages.length > 0;
+      const hasPolygons = hasExportablePolygons();
+      els.exportImagesBtn.disabled = !hasSelectedImages || !hasPolygons;
     }
     
     if (els.clearSelectionBtn) {
@@ -163,6 +474,348 @@
     if (els.loadingOverlay) {
       els.loadingOverlay.style.display = 'none';
     }
+  };
+
+  // Polygon manager helpers
+  const getNextPolygonColor = () => {
+    // Try to pick an unused palette color first
+    const used = new Set(state.polygons.map((p) => p.color?.toLowerCase?.()));
+    const palette = state.polygonColorPalette;
+    for (let i = 0; i < palette.length; i++) {
+      const candidate = palette[(state.polygonColorIndex + i) % palette.length];
+      if (!used.has(candidate.toLowerCase())) {
+        state.polygonColorIndex = state.polygonColorIndex + i + 1;
+        return candidate;
+      }
+    }
+
+    // Fallback: generate a distinct-ish color via HSL if palette exhausted
+    const hue = (state.polygonCounter * 47) % 360;
+    const fallback = `hsl(${hue}, 75%, 50%)`;
+    state.polygonColorIndex += 1;
+    return fallback;
+  };
+
+  const sanitizePolygonName = (value, fallback) => {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (trimmed) return trimmed.slice(0, 120);
+    const fallbackTrimmed = typeof fallback === 'string' ? fallback.trim() : '';
+    return fallbackTrimmed || 'Polygon';
+  };
+
+  const sanitizeExportName = (value, fallback) => {
+    const base = (typeof value === 'string' ? value : fallback || '')
+      .toString()
+      .toLowerCase()
+      .trim();
+    if (!base) return '';
+    const underscored = base.replace(/\s+/g, '_');
+    const cleaned = underscored.replace(/[^a-z0-9_]/g, '').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+    return cleaned;
+  };
+
+  const applyPolygonStyle = (layer, color) => {
+    try {
+      if (layer.setStyle) {
+        layer.setStyle({ color, weight: 2, opacity: 1, fillOpacity: 0.2 });
+      }
+    } catch (_err) {
+      // Styling is best-effort
+    }
+  };
+
+  const addPolygonRecord = (layer, type) => {
+    if (!layer) return null;
+    const geometry = layer.toGeoJSON();
+    const id = `polygon_${state.polygonCounter++}`;
+    const name = `Polygon ${state.polygons.length + 1}`;
+    const color = getNextPolygonColor();
+    applyPolygonStyle(layer, color);
+
+    const record = {
+      id,
+      name,
+      type: type || 'polygon',
+      geometry,
+      color,
+      visibility: true,
+      selected_for_export: true,
+      layerId: layer._leaflet_id
+    };
+
+    state.polygons.push(record);
+    bindPolygonLayerEvents(layer, record);
+    refreshPolygonLayerStyles();
+    recomputeSelectionFromPolygons();
+    renderPolygonPanel();
+    return record;
+  };
+
+  const findPolygonIndexByLayerId = (layerId) => state.polygons.findIndex((p) => p.layerId === layerId);
+
+  const updatePolygonGeometry = (layer) => {
+    if (!layer) return;
+    const idx = findPolygonIndexByLayerId(layer._leaflet_id);
+    if (idx === -1) return;
+    state.polygons[idx].geometry = layer.toGeoJSON();
+  };
+
+  const removePolygonRecord = (layer) => {
+    if (!layer) return;
+    const idx = findPolygonIndexByLayerId(layer._leaflet_id);
+    if (idx === -1) return;
+    state.polygons.splice(idx, 1);
+    refreshPolygonLayerStyles();
+    recomputeSelectionFromPolygons();
+    renderPolygonPanel();
+  };
+
+  const setPolygonVisibility = (polygonId, visible) => {
+    const record = state.polygons.find((p) => p.id === polygonId);
+    if (!record) return;
+    record.visibility = !!visible;
+
+    // When hiding: ensure it is not selected for export and clear selection state
+    if (!record.visibility) {
+      record.selected_for_export = false;
+      if (state.currentSelection?.record?.id === record.id) {
+        state.currentSelection = null;
+      }
+    }
+
+    if (!state.drawnItems) return;
+    const layer = state.drawnItems.getLayers().find((l) => l._leaflet_id === record.layerId);
+    if (!layer) return;
+    if (record.visibility) {
+      if (!state.map.hasLayer(layer)) {
+        layer.addTo(state.map);
+        if (layer.bringToFront) layer.bringToFront();
+      }
+    } else {
+      if (state.map.hasLayer(layer)) {
+        state.map.removeLayer(layer);
+      }
+    }
+
+    refreshPolygonLayerStyles();
+    recomputeSelectionFromPolygons();
+    renderPolygonPanel();
+  };
+
+  const setPolygonExportSelection = (polygonId, selected) => {
+    const record = state.polygons.find((p) => p.id === polygonId);
+    if (!record) return;
+    const nextSelected = !!selected;
+    record.selected_for_export = nextSelected;
+
+    // Checkbox drives visibility: on -> visible, off -> hidden
+    record.visibility = nextSelected;
+
+    const layer = findLayerById(record.layerId);
+    if (nextSelected) {
+      if (layer) {
+        if (!state.map.hasLayer(layer)) {
+          layer.addTo(state.map);
+        }
+        if (layer.bringToFront) layer.bringToFront();
+      }
+    } else {
+      if (state.currentSelection?.record?.id === record.id) {
+        state.currentSelection = null;
+      }
+      if (layer && state.map.hasLayer(layer)) {
+        state.map.removeLayer(layer);
+      }
+    }
+
+    refreshPolygonLayerStyles();
+    renderPolygonPanel();
+    recomputeSelectionFromPolygons();
+  };
+
+  const updatePolygonName = (polygonId, newName) => {
+    const record = state.polygons.find((p) => p.id === polygonId);
+    if (!record) return;
+    const sanitized = sanitizePolygonName(newName, record.name || polygonId);
+    record.name = sanitized;
+
+    // Update the input value in-place so we don't lose focus
+    if (els.polygonList) {
+      const input = els.polygonList.querySelector(`.poly-name-input[data-id="${polygonId}"]`);
+      if (input && input.value !== sanitized) {
+        input.value = sanitized;
+      }
+    }
+  };
+
+  const updatePolygonColor = (polygonId, color) => {
+    const record = state.polygons.find((p) => p.id === polygonId);
+    if (!record) return;
+    record.color = color;
+    const layer = findLayerById(record.layerId);
+    if (layer) {
+      applyPolygonStyle(layer, color);
+      if (layer.bringToFront) layer.bringToFront();
+    }
+    refreshPolygonLayerStyles();
+    renderPolygonPanel();
+  };
+
+  const findLayerById = (layerId) => {
+    if (!state.drawnItems) return null;
+    return state.drawnItems.getLayers().find((l) => l._leaflet_id === layerId) || null;
+  };
+
+  const refreshPolygonLayerStyles = () => {
+    state.polygons.forEach((poly) => {
+      const layer = findLayerById(poly.layerId);
+      if (layer && layer.setStyle) {
+        layer.setStyle({
+          color: poly.color,
+          weight: poly.selected_for_export ? 3 : 2,
+          opacity: 1,
+          fillOpacity: poly.selected_for_export ? 0.25 : 0.14
+        });
+        if (poly.selected_for_export && layer.bringToFront) {
+          layer.bringToFront();
+        }
+      }
+    });
+  };
+
+  const getPolygonSelectionContexts = () => {
+    const selected = state.polygons.filter((p) => p.selected_for_export);
+    const contexts = selected
+      .map((record) => {
+        const layer = findLayerById(record.layerId);
+        if (!layer) return null;
+        return { layer, type: record.type, record };
+      })
+      .filter(Boolean);
+
+    // Fallback to the active drawing if nothing is explicitly selected
+    if (!contexts.length && state.currentSelection) {
+      return [state.currentSelection];
+    }
+    return contexts;
+  };
+
+  const recomputeSelectionFromPolygons = () => {
+    const contexts = getPolygonSelectionContexts();
+    processImageSelection(contexts);
+  };
+
+  const togglePolygonSelection = (record, layerOverride) => {
+    if (!record) return;
+    const layer = layerOverride || findLayerById(record.layerId);
+    if (!layer) return;
+
+    record.selected_for_export = !record.selected_for_export;
+    state.currentSelection = {
+      type: record.type,
+      layer,
+      geometry: layer.toGeoJSON()
+    };
+
+    refreshPolygonLayerStyles();
+    renderPolygonPanel();
+    recomputeSelectionFromPolygons();
+  };
+
+  const bindPolygonLayerEvents = (layer, record) => {
+    if (!layer || !record || !layer.on) return;
+    layer.on('click', (e) => {
+      if (e?.originalEvent?.stopPropagation) {
+        e.originalEvent.stopPropagation();
+      }
+      togglePolygonSelection(record, layer);
+    });
+  };
+
+  const renderPolygonPanel = () => {
+    if (!els.polygonList) return;
+    const list = els.polygonList;
+    list.innerHTML = '';
+
+    const total = state.polygons.length;
+    const selectedCount = state.polygons.filter((p) => p.selected_for_export).length;
+    const hiddenCount = state.polygons.filter((p) => !p.visibility).length;
+
+    if (els.polygonCount) {
+      els.polygonCount.textContent = total;
+    }
+    if (els.polygonSelectedCount) {
+      els.polygonSelectedCount.textContent = selectedCount;
+    }
+    if (els.polygonHiddenCount) {
+      els.polygonHiddenCount.textContent = hiddenCount;
+    }
+
+    if (!total) {
+      const empty = document.createElement('div');
+      empty.className = 'polygon-empty';
+      empty.textContent = 'No polygons yet. Draw a polygon or rectangle to get started.';
+      list.appendChild(empty);
+      return;
+    }
+
+    state.polygons.forEach((poly) => {
+      const colorValue = poly.color || '#0f60c4';
+      const polyType = poly.type ? poly.type.charAt(0).toUpperCase() + poly.type.slice(1) : 'Polygon';
+
+      const row = document.createElement('div');
+      row.className = 'polygon-row';
+      row.dataset.id = poly.id;
+      if (poly.selected_for_export) {
+        row.classList.add('is-selected');
+      }
+      if (!poly.visibility) {
+        row.classList.add('is-hidden');
+      }
+
+      row.innerHTML = `
+        <label class="poly-col poly-col-export" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" class="poly-export" data-id="${poly.id}" ${poly.selected_for_export ? 'checked' : ''}>
+          <span class="poly-export-label">Export</span>
+        </label>
+        <div class="poly-col poly-col-name">
+          <input
+            type="text"
+            class="poly-name-input poly-name"
+            data-id="${poly.id}"
+            value=""
+            placeholder="Polygon name"
+            aria-label="Polygon name"
+          />
+          <div class="poly-meta">
+            <span class="pill pill-strong">${polyType}</span>
+            <span class="pill pill-id">ID ${poly.id}</span>
+          </div>
+        </div>
+        <div class="poly-col poly-col-color">
+          <input type="color" class="poly-color" data-id="${poly.id}" value="${colorValue}">
+        </div>
+        <button
+          class="poly-col poly-col-visibility poly-visibility"
+          data-id="${poly.id}"
+          data-visible="${poly.visibility}"
+          title="${poly.visibility ? 'Hide polygon' : 'Show polygon'}"
+          aria-label="${poly.visibility ? 'Hide polygon' : 'Show polygon'}"
+        >
+          ${poly.visibility
+            ? `<svg class="poly-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`
+            : `<svg class="poly-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 4.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.35 18.35 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/><path d="M14.12 14.12A3 3 0 0 1 9.88 9.88"/></svg>`}
+          <span class="poly-visibility-label">${poly.visibility ? 'Visible' : 'Hidden'}</span>
+        </button>
+      `;
+
+      const nameInput = row.querySelector('.poly-name-input');
+      if (nameInput) {
+        nameInput.value = poly.name || '';
+      }
+
+      list.appendChild(row);
+    });
   };
 
   const showToast = (message, type = 'info') => {
@@ -439,6 +1092,9 @@
     
     // Clear selected images array
     state.selectedImages = [];
+
+    // Clear path overlay
+    clearFlightPath();
     
     // Update button states
     updateButtonStates();
@@ -450,6 +1106,14 @@
       return;
     }
     
+    const sortedData = sortGpsData(gpsData);
+    state.currentPathPoints = sortedData.map((p) => ({
+      lat: p.latitude ?? p.lat,
+      lng: p.longitude ?? p.lng,
+      filename: p.filename,
+      filepath: p.filepath
+    }));
+    
     // Clear existing markers
     const preservedTotalImages = state.totalImagesInFolder;
     clearMarkers();
@@ -457,7 +1121,7 @@
     
     // Optimize for large datasets: batch process markers in chunks
     const batchSize = 1000; // Process 1000 markers at a time to prevent UI freezing
-    const totalMarkers = gpsData.length;
+    const totalMarkers = sortedData.length;
     
     // Show loading indicator for large datasets
     if (totalMarkers > 5000) {
@@ -470,7 +1134,7 @@
       
       // Process this batch
       for (let i = startIndex; i < endIndex; i++) {
-        const point = gpsData[i];
+        const point = sortedData[i];
         
         // Validate required fields and map to expected structure
         if (typeof point.latitude !== 'number' || typeof point.longitude !== 'number' || typeof point.filename !== 'string') {
@@ -487,14 +1151,19 @@
         };
         
         try {
-          const marker = L.marker([mappedPoint.lat, mappedPoint.lng], { 
+          const labelOffset = getNextLabelOffset();
+          const marker = L.circleMarker([mappedPoint.lat, mappedPoint.lng], { 
+            ...markerDefaultStyle,
             renderer: state.renderer || state.map?.options?.renderer,
-            riseOnHover: true,
             fileName: mappedPoint.filename,
             filePath: mappedPoint.filepath  // Store full file path for future use
           })
-            .bindTooltip(mappedPoint.filename, { permanent: false, direction: 'top' })
+            .bindTooltip(mappedPoint.filename, { permanent: true, direction: 'top', offset: labelOffset, className: 'marker-label' })
             .bindPopup(`<b>${mappedPoint.filename}</b><br>Lat: ${mappedPoint.lat.toFixed(6)}, Lng: ${mappedPoint.lng.toFixed(6)}`);
+
+          // Hover preview
+          marker.on('mouseover', () => showMarkerHover(marker, mappedPoint));
+          marker.on('mouseout', hideMarkerHover);
           
           // Add click event listener to marker
           marker.on('click', function() {
@@ -563,6 +1232,9 @@
     if (state.isLoading) {
       hideLoadingIndicator();
     }
+
+    // Update flight path overlay
+    buildFlightPath(state.currentPathPoints);
   };
 
   const loadSampleMarkers = () => {
@@ -581,13 +1253,19 @@
     state.totalImagesInFolder = sampleLocations.length;
     
     sampleLocations.forEach(location => {
-      const marker = L.marker([location.lat, location.lng], { 
+      const labelOffset = getNextLabelOffset();
+      const marker = L.circleMarker([location.lat, location.lng], { 
+        ...markerDefaultStyle,
         renderer: state.renderer || state.map?.options?.renderer,
-        riseOnHover: true,
         fileName: location.name 
       })
         .addTo(state.map)
+        .bindTooltip(location.name, { permanent: true, direction: 'top', offset: labelOffset, className: 'marker-label' })
         .bindPopup(`<b>${location.name}</b><br>Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}`);
+
+      // Hover preview (no image path available for sample markers)
+      marker.on('mouseover', () => showMarkerHover(marker, { filename: location.name, filepath: null }));
+      marker.on('mouseout', hideMarkerHover);
       
       state.markers.push(marker);
     });
@@ -597,6 +1275,10 @@
       const group = new L.featureGroup(state.markers);
       state.map.fitBounds(group.getBounds().pad(0.1));
     }
+    
+    // Build path for samples
+    state.currentPathPoints = sampleLocations.map((p) => ({ lat: p.lat, lng: p.lng, filename: p.name }));
+    buildFlightPath(state.currentPathPoints);
     
     log(`Loaded ${sampleLocations.length} sample locations`, 'info');
     
@@ -706,11 +1388,33 @@
     }
   };
 
+  const buildExportLabel = () => {
+    const selected = state.polygons.filter((p) => p.selected_for_export && p.visibility);
+    if (!selected.length) return null;
+    const names = selected
+      .map((p) => sanitizeExportName(p.name, p.id))
+      .filter((name) => !!name);
+
+    if (!names.length) return null;
+    return names.join('_');
+  };
+
+  const hasExportablePolygons = () => {
+    return state.polygons.some((p) => p.selected_for_export && p.visibility);
+  };
+
   // Function to export selected images
   const exportSelectedImages = async () => {
     // Check if there are selected images
     if (state.selectedImages.length === 0) {
       showToast('No images selected. Please select images first.', 'warning');
+      return;
+    }
+
+    // Require at least one exportable, visible polygon for folder naming
+    const exportLabel = buildExportLabel();
+    if (!exportLabel) {
+      showToast('Please select at least one polygon to export', 'warning');
       return;
     }
     
@@ -764,6 +1468,15 @@
         showToast(`Warning: Missing file paths for ${missingFiles.length} files`, 'warning');
       }
       
+      const exportPayload = {
+        sourcePaths: selectedFilePaths,
+        destination: destinationFolder
+      };
+
+      if (exportLabel) {
+        exportPayload.exportLabel = exportLabel;
+      }
+
       // Show copying state
       showToast(`Exporting ${selectedFilePaths.length} images...`, 'info');
       
@@ -772,17 +1485,11 @@
       
       // Try using electronAPI first
       if (window.electronAPI?.exportImages) {
-        result = await window.electronAPI.exportImages({
-          sourcePaths: selectedFilePaths,
-          destination: destinationFolder
-        });
+        result = await window.electronAPI.exportImages(exportPayload);
       }
       // Fallback to legacy api
       else if (window.api?.exportImages) {
-        result = await window.api.exportImages({
-          sourcePaths: selectedFilePaths,
-          destination: destinationFolder
-        });
+        result = await window.api.exportImages(exportPayload);
       } else {
         // If no IPC method available, show error
         throw new Error('Export functionality not available');
@@ -794,13 +1501,19 @@
       }
       
       const exportedCount = result.exported_count || 0;
-      const exportFolderName = result.export_folder_name || 'Unknown folder';
+      const exportFolderName = result.export_folder_name;
+
+      // Edge guard: missing folder name should halt UX flow with a clear warning
+      if (!exportFolderName) {
+        showToast('Please select at least one polygon to export.', 'warning');
+        return;
+      }
       
       // Show success message
       showToast(`Successfully exported ${exportedCount} images to ${exportFolderName}`, 'success');
       
       // Ask user if they want to open the exported folder
-      if (confirm(`Export completed successfully! Would you like to open the folder '${exportFolderName}'?`)) {
+      if (confirm(`Export completed successfully!\nWould you like to open the folder '${exportFolderName}'?`)) {
         // Auto-open the destination folder
         try {
           if (window.electronAPI?.openFolder) {
@@ -866,14 +1579,18 @@
     state.map.on(L.Draw.Event.CREATED, (e) => {
       const type = e.layerType;
       const layer = e.layer;
-      
-      clearCurrentSelection();
-      
+
       // Ensure new layer uses the shared renderer
       layer.options.renderer = state.renderer || state.map.options.renderer;
       
       // Add the new layer to the drawn items group
       state.drawnItems.addLayer(layer);
+      if (layer.bringToFront) {
+        layer.bringToFront(); // Keep newest shapes on top when overlapping
+      }
+
+      // Track polygon in polygon manager
+      addPolygonRecord(layer, type);
       
       // Store the current selection
       state.currentSelection = {
@@ -899,6 +1616,8 @@
         if (state.currentSelection && state.currentSelection.layer === layer) {
           state.currentSelection.geometry = layer.toGeoJSON();
         }
+        // Sync polygon manager geometry
+        updatePolygonGeometry(layer);
       });
       
       log('Selection edited', 'info');
@@ -909,6 +1628,8 @@
     });
     
     state.map.on(L.Draw.Event.DELETED, (e) => {
+      // Remove polygons from manager
+      e.layers.eachLayer((layer) => removePolygonRecord(layer));
       clearCurrentSelection();
       log('Selection deleted', 'info');
       showToast('Selection cleared', 'info');
@@ -974,6 +1695,13 @@
         exportSelectedImages();
       });
     }
+
+    if (els.importKmlBtn) {
+      els.importKmlBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await importKmlFlow();
+      });
+    }
     
     if (els.clearSelectionBtn) {
       els.clearSelectionBtn.addEventListener('click', (e) => {
@@ -1024,6 +1752,50 @@
     if (window.electronAPI) {
       // If we had a specific channel for GPS data, we would listen here
       // For now, we'll rely on the message passing approach above
+    }
+
+    // Polygon panel interactions (event delegation)
+    if (els.polygonList) {
+      els.polygonList.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target.classList.contains('poly-visibility')) {
+          const id = target.dataset.id;
+          const current = target.dataset.visible === 'true';
+          setPolygonVisibility(id, !current);
+        }
+      });
+
+      els.polygonList.addEventListener('input', (e) => {
+        const target = e.target;
+        if (target.classList.contains('poly-name-input')) {
+          const id = target.dataset.id;
+          updatePolygonName(id, target.value);
+        }
+      });
+
+      els.polygonList.addEventListener(
+        'blur',
+        (e) => {
+          const target = e.target;
+          if (target.classList.contains('poly-name-input')) {
+            const id = target.dataset.id;
+            updatePolygonName(id, target.value);
+          }
+        },
+        true
+      );
+
+      els.polygonList.addEventListener('change', (e) => {
+        const target = e.target;
+        if (target.classList.contains('poly-export')) {
+          const id = target.dataset.id;
+          setPolygonExportSelection(id, target.checked);
+        }
+        if (target.classList.contains('poly-color')) {
+          const id = target.dataset.id;
+          updatePolygonColor(id, target.value);
+        }
+      });
     }
   };
 
@@ -1099,6 +1871,12 @@
     
     // First, collect all manually selected filenames
     state.markers.forEach(marker => {
+      if (!isMarkerManuallySelected(marker) && marker.setStyle) {
+        marker.setStyle(markerDefaultStyle);
+      }
+      if (isMarkerManuallySelected(marker) && marker.setStyle) {
+        marker.setStyle(markerSelectedStyle);
+      }
       if (isMarkerManuallySelected(marker)) {
         const filename = marker.options.fileName || marker.options.title || 'unknown';
         if (!manuallySelectedFilenames.includes(filename)) {
@@ -1126,128 +1904,136 @@
     state.markers.forEach(marker => {
       // Only reset markers that weren't manually selected
       if (!isMarkerManuallySelected(marker)) {
-        // Reset to default marker icon
-        marker.setIcon(new L.Icon.Default());
+        // Reset to default marker style
+        if (marker.setStyle) {
+          marker.setStyle(markerDefaultStyle);
+        }
         // Clear manual selection flag
         marker._manuallySelected = false;
       }
     });
   };
   
-  // Function to process image selection based on the current drawn region
-  const processImageSelection = () => {
-    if (!state.currentSelection || !state.markers.length) {
-      // Don't clear manual selections when there's no drawn selection
+  // Function to process image selection based on selected polygons (can be multiple)
+  const processImageSelection = (targetPolygons) => {
+    if (!state.markers.length) {
       return;
     }
-    
+
+    const polygonContexts =
+      (targetPolygons && targetPolygons.length && targetPolygons) || getPolygonSelectionContexts();
+
+    if (!polygonContexts.length) {
+      // If no polygons are active, clear region selections but keep manual ones
+      clearRegionBasedSelections();
+      return;
+    }
+
     // Show loading indicator for large datasets
     if (state.markers.length > 5000) {
       showLoadingIndicator();
     }
-    
-    // Process in batches to prevent UI freezing
+
+    // Build selection configurations
+    const selectionConfigs = polygonContexts
+      .map((ctx) => {
+        const selectionLayer = ctx.layer;
+        const selectionType = ctx.type;
+
+        if (!selectionLayer) return null;
+
+        if (selectionType === 'polygon') {
+          const geoJson = selectionLayer.toGeoJSON();
+          if (geoJson?.geometry?.coordinates) {
+            const polygonCoords = geoJson.geometry.coordinates[0].map((coord) => ({
+              lng: coord[0],
+              lat: coord[1]
+            }));
+            return { selectionFunction: isPointInPolygon, selectionGeometry: polygonCoords };
+          }
+        } else if (selectionType === 'rectangle') {
+          return { selectionFunction: isPointInRectangle, selectionGeometry: selectionLayer.getBounds() };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    if (!selectionConfigs.length) {
+      clearRegionBasedSelections();
+      return;
+    }
+
     const batchSize = 1000;
     const totalMarkers = state.markers.length;
-    const regionSelectedMarkers = [];
-    
-    // Get the selection layer and bounds
-    const selectionLayer = state.currentSelection.layer;
-    const selectionType = state.currentSelection.type;
-    
-    // Precompute selection geometry for better performance
-    let selectionGeometry = null;
-    let selectionFunction = null;
-    
-    if (selectionType === 'polygon') {
-      // For polygon, we need to get the coordinates
-      const geoJson = selectionLayer.toGeoJSON();
-      if (geoJson && geoJson.geometry && geoJson.geometry.coordinates) {
-        // Convert coordinates to array of {lat, lng} objects
-        const polygonCoords = geoJson.geometry.coordinates[0].map(coord => ({
-          lng: coord[0],
-          lat: coord[1]
-        }));
-        selectionGeometry = polygonCoords;
-        selectionFunction = isPointInPolygon;
+    const regionSelectedMarkers = new Set();
+    const manuallySelected = new Set();
+
+    // Collect manually selected markers first
+    state.markers.forEach((marker) => {
+      if (isMarkerManuallySelected(marker)) {
+        const filename = marker.options.fileName || marker.options.title || 'unknown';
+        manuallySelected.add(filename);
       }
-    } else if (selectionType === 'rectangle') {
-      // For rectangle, use bounds
-      selectionGeometry = selectionLayer.getBounds();
-      selectionFunction = isPointInRectangle;
-    }
-    
-    // Process markers in batches
+    });
+
     const processBatch = (startIndex) => {
       const endIndex = Math.min(startIndex + batchSize, totalMarkers);
-      
-      // Process this batch
+
       for (let i = startIndex; i < endIndex; i++) {
         const marker = state.markers[i];
-        
-        // Get marker position
         const latLng = marker.getLatLng();
         const point = { lat: latLng.lat, lng: latLng.lng };
-        
-        let isSelected = false;
-        
-        // Check if point is within selection
-        if (selectionFunction && selectionGeometry) {
-          isSelected = selectionFunction(point, selectionGeometry);
+        const filename = marker.options.fileName || marker.options.title || 'unknown';
+
+        let isSelectedByRegion = false;
+        for (let idx = 0; idx < selectionConfigs.length; idx++) {
+          const config = selectionConfigs[idx];
+          if (config.selectionFunction && config.selectionGeometry && config.selectionFunction(point, config.selectionGeometry)) {
+            isSelectedByRegion = true;
+            break;
+          }
         }
-        
-        // Track region-selected markers
-        if (isSelected) {
-          const filename = marker.options.fileName || marker.options.title || 'unknown';
-          regionSelectedMarkers.push(filename);
-          
-          // Highlight the marker if it's not already selected manually
-          if (!state.selectedImages.includes(filename)) {
-            marker.setIcon(L.divIcon({
-              className: 'selected-marker',
-              iconSize: [24, 24],
-              html: '<div style="background-color: #16a34a; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>'
-            }));
+
+        if (isSelectedByRegion) {
+          regionSelectedMarkers.add(filename);
+          if (!isMarkerManuallySelected(marker) && marker.setStyle) {
+            marker.setStyle(markerRegionStyle);
           }
         } else {
-          // If marker was only selected by region (not manually), reset styling
-          const filename = marker.options.fileName || marker.options.title || 'unknown';
-          if (state.selectedImages.includes(filename) && !isMarkerManuallySelected(marker)) {
-            marker.setIcon(new L.Icon.Default());
-            // Also remove from selectedImages if it's only region-selected
-            const index = state.selectedImages.indexOf(filename);
-            if (index > -1) {
-              state.selectedImages.splice(index, 1);
-            }
+          if (!isMarkerManuallySelected(marker) && marker.setStyle) {
+            marker.setStyle(markerDefaultStyle);
           }
         }
+
+        // Ensure manually selected markers keep their style
+        if (isMarkerManuallySelected(marker) && marker.setStyle) {
+          marker.setStyle(markerSelectedStyle);
+        }
       }
-      
-      // If there are more batches, process them asynchronously
+
       if (endIndex < totalMarkers) {
         setTimeout(() => processBatch(endIndex), 0);
       } else {
-        // All markers processed, finalize
-        finalizeSelectionProcessing(regionSelectedMarkers);
+        const combinedSelection = [...manuallySelected];
+        regionSelectedMarkers.forEach((file) => {
+          if (!combinedSelection.includes(file)) {
+            combinedSelection.push(file);
+          }
+        });
+        finalizeSelectionProcessing(combinedSelection);
       }
     };
-    
-    // Start processing the first batch
+
     if (totalMarkers > 0) {
       processBatch(0);
     } else {
-      finalizeSelectionProcessing(regionSelectedMarkers);
+      finalizeSelectionProcessing([...manuallySelected]);
     }
   };
   
   // Finalize selection processing after all batches are complete
-  const finalizeSelectionProcessing = (regionSelectedMarkers) => {
-    // Merge region selections with existing manual selections
-    regionSelectedMarkers.forEach(filename => {
-      if (!state.selectedImages.includes(filename)) {
-        state.selectedImages.push(filename);
-      }
-    });
+  const finalizeSelectionProcessing = (combinedSelection) => {
+    state.selectedImages = Array.isArray(combinedSelection) ? [...combinedSelection] : [];
     
     // Update selection count display
     updateSelectionCountDisplay();
@@ -1264,6 +2050,10 @@
     updateButtonStates();
     
     log(`Processed selection: ${state.selectedImages.length} images selected`, 'info');
+
+    if (state.selectedImages.length === 0) {
+      showToast('No images found in the selected region', 'warning');
+    }
     
     // Hide loading indicator if it was shown
     if (state.isLoading) {
@@ -1283,11 +2073,9 @@
       state.selectedImages.push(fileName);
       
       // Highlight the marker
-      marker.setIcon(L.divIcon({
-        className: 'selected-marker',
-        iconSize: [24, 24],
-        html: '<div style="background-color: #16a34a; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>'
-      }));
+      if (marker.setStyle) {
+        marker.setStyle(markerSelectedStyle);
+      }
       
       // Mark this marker as manually selected
       marker._manuallySelected = true;
@@ -1325,19 +2113,22 @@
       
       if (isSelectedByRegion) {
         // Keep it highlighted as region-selected
-        marker.setIcon(L.divIcon({
-          className: 'selected-marker',
-          iconSize: [24, 24],
-          html: '<div style="background-color: #16a34a; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>'
-        }));
+        if (marker.setStyle) {
+          marker.setStyle(markerRegionStyle);
+        }
       } else {
-        // Reset to default marker icon
-        marker.setIcon(new L.Icon.Default());
+        // Reset to default marker style
+        if (marker.setStyle) {
+          marker.setStyle(markerDefaultStyle);
+        }
       }
       
       // Mark this marker as not manually selected
       marker._manuallySelected = false;
     }
+    
+    // Keep hover preview responsive to style changes
+    hideMarkerHover();
     
     // Update selected count
     if (els.selectedCount) {
@@ -1383,7 +2174,8 @@
       state.selectionCountElement.style.cssText = `
         position: absolute;
         top: 10px;
-        right: 10px;
+        left: 50%;
+        transform: translateX(-50%);
         background: rgba(15, 96, 196, 0.9);
         color: white;
         padding: 8px 12px;
@@ -1463,7 +2255,12 @@
       folderPathText: qs('folderPathText'),
       totalImagesCount: qs('totalImagesCount'),
       selectedCount: qs('selectedCount'),
-      selectedFilesList: qs('selectedFilesList')
+      selectedFilesList: qs('selectedFilesList'),
+      polygonList: qs('polygonList'),
+      polygonCount: qs('polygonCount'),
+      polygonSelectedCount: qs('polygonSelectedCount'),
+      polygonHiddenCount: qs('polygonHiddenCount'),
+      importKmlBtn: qs('importKmlBtn')
     });
 
     initLang();
@@ -1489,8 +2286,16 @@
       getCurrentSelection,
       getCurrentBounds,
       clearSelection,
-      getSelectedImages: () => [...state.selectedImages] // Return a copy of the array
+    getSelectedImages: () => [...state.selectedImages], // Return a copy of the array
+    getPolygons: () => [...state.polygons],
+      setPolygonVisibility,
+      setPolygonExportSelection
+    // KML import is handled via UI button; expose for external triggers if needed
+    // importKml: importKmlFlow
     };
+
+    // Initial render of polygon panel (empty state)
+    renderPolygonPanel();
   });
   
   // Cleanup function to remove event listeners

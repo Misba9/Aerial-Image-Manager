@@ -31,19 +31,13 @@
           <p class="subtitle">Visualize and organize images on a map</p>
         </div>
       </div>
-      <!-- <div class="header-actions">
-        <div class="lang-toggle">
-          <button id="langEn" class="chip ghost small">EN</button>
-          <button id="langAr" class="chip ghost small">AR</button>
-        </div>
-      </div> -->
     </div>
 
     <div class="actions-bar">
       <div class="actions-left">
         <div class="folder-path-display">
-          <span class="muted small">Selected folder</span>
-          <span id="folderPathText">No folder selected</span>
+          <span class="muted small">Selected folder:</span>
+          <span id="folderPathText" class="folder-path-value">No folder selected</span>
         </div>
         <div class="statistics">
           <span class="stat-item">Total Images: <span id="totalImagesCount">0</span></span>
@@ -68,6 +62,18 @@
           </span>
           Load Images
         </button>
+        <button id="importKmlBtn" class="ghost icon-btn">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16v4H4z" />
+              <path d="M4 12h16v8H4z" />
+              <path d="M8 12V8" />
+              <path d="M12 12V8" />
+              <path d="M16 12V8" />
+            </svg>
+          </span>
+          Import KML
+        </button>
         <button id="exportImagesBtn" class="primary icon-btn">
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -88,18 +94,103 @@
     </div>
 
     <div class="map-wrapper">
-      <div id="map"></div>
-      <!-- <div class="selection-panel">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Selection</p>
-            <h3>Selected Files</h3>
+      <style>
+        .map-layout {
+          display: flex;
+          gap: 12px;
+          height: 100%;
+          min-height: 0;
+        }
+
+        .map-area {
+          flex: 0 0 70%;
+          min-width: 0;
+          position: relative;
+          height: 100%;
+        }
+
+        .map-layout .polygon-panel {
+          position: static;
+          width: 30%;
+          max-width: none;
+          max-height: none;
+          height: 100%;
+          min-width: 260px;
+          display: flex;
+          flex-direction: column;
+          z-index: 1;
+        }
+
+        .map-layout .polygon-table {
+          flex: 1;
+          min-height: 0;
+        }
+
+        .map-layout .polygon-list {
+          max-height: none;
+          min-height: 0;
+          flex: 1;
+        }
+
+        @media (max-width: 900px) {
+          .map-layout {
+            flex-direction: column;
+          }
+
+          .map-area,
+          .map-layout .polygon-panel {
+            width: 100%;
+            min-width: 0;
+          }
+
+          .map-area {
+            height: 60vh;
+          }
+
+          .map-layout .polygon-panel {
+            height: auto;
+          }
+        }
+      </style>
+      <div class="map-layout">
+        <div class="map-area">
+          <div id="map"></div>
+        </div>
+        <div class="polygon-panel" id="polygonPanel">
+          <div class="panel-head">
+            <div class="panel-title">
+              <p class="eyebrow">Polygons</p>
+              <h3>Polygon Manager</h3>
+              <p class="panel-subtext">Select which shapes export images, fine-tune colors, and toggle visibility.</p>
+            </div>
+            <div class="panel-stats">
+              <span class="chip chip-neutral">
+                <span class="dot dot-neutral" aria-hidden="true"></span>
+                <span id="polygonCount">0</span> total
+              </span>
+              <span class="chip chip-accent">
+                <span class="dot dot-accent" aria-hidden="true"></span>
+                <span id="polygonSelectedCount">0</span> export
+              </span>
+              <span class="chip chip-muted">
+                <span class="dot dot-muted" aria-hidden="true"></span>
+                <span id="polygonHiddenCount">0</span> hidden
+              </span>
+            </div>
+          </div>
+          <div class="polygon-table">
+            <div class="polygon-table-head">
+              <span class="poly-col poly-col-export">Export</span>
+              <span class="poly-col poly-col-name">Name</span>
+              <span class="poly-col poly-col-color">Color</span>
+              <span class="poly-col poly-col-visibility">Visibility</span>
+            </div>
+            <div id="polygonList" class="polygon-list">
+              <div class="polygon-empty">No polygons yet. Draw a polygon or rectangle to get started.</div>
+            </div>
           </div>
         </div>
-        <div id="selectedFilesList" class="selected-files-list">
-          No files selected
-        </div>
-      </div> -->
+      </div>
     </div>
   </div>
 

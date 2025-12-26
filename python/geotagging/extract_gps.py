@@ -29,6 +29,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+XMP_NAMESPACE = "http://shamal.tools/ns/cameraorientation/1.0/"
+
 
 def load_pillow():
     try:
@@ -117,6 +119,89 @@ def extract_gps_info(exif: Dict[int, Any]) -> Tuple[Optional[float], Optional[fl
     return lat, lon, alt
 
 
+def decode_user_comment(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        try:
+            prefix = raw[:8]
+            payload = raw
+            if prefix in {b"ASCII\x00\x00\x00", b"UNICODE\x00", b"UNICODE\x00"}:
+                payload = raw[8:]
+            try:
+                return payload.decode("utf-8", errors="ignore")
+            except Exception:
+                try:
+                    return payload.decode("utf-16", errors="ignore")
+                except Exception:
+                    return None
+        except Exception:
+            return None
+    try:
+        return str(raw)
+    except Exception:
+        return None
+
+
+def parse_orientation_comment(text: Optional[str]) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    if not text:
+        return None, None, None
+    try:
+        data = json.loads(text)
+        phi = data.get("phi")
+        alpha = data.get("alpha")
+        kappa = data.get("kappa")
+        def to_float(v):
+            try:
+                return float(v)
+            except Exception:
+                return None
+        return to_float(phi), to_float(alpha), to_float(kappa)
+    except Exception:
+        return None, None, None
+
+
+def parse_xmp_sidecar(path: Path) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    sidecar = path.with_suffix(path.suffix + ".xmp")
+    if not sidecar.exists():
+        return None, None, None
+    try:
+        text = sidecar.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return None, None, None
+
+    def find(tag: str) -> Optional[float]:
+        import re
+        match = re.search(rf"<sgco:{tag}>(-?\d+(?:\.\d+)?)</sgco:{tag}>", text)
+        if match:
+            try:
+                return float(match.group(1))
+            except Exception:
+                return None
+        return None
+
+    phi = find("Phi")
+    alpha = find("Alpha")
+    kappa = find("Kappa")
+    return phi, alpha, kappa
+
+
+def extract_orientation(exif: Dict[int, Any], img_path: Optional[Path] = None) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    # Preferred: XMP sidecar if present
+    if img_path is not None:
+        x_phi, x_alpha, x_kappa = parse_xmp_sidecar(img_path)
+        if any(v is not None for v in (x_phi, x_alpha, x_kappa)):
+            return x_phi, x_alpha, x_kappa
+    if not exif:
+        return None, None, None
+    if ExifTags:
+        for key, val in exif.items():
+            if ExifTags.TAGS.get(key) == "UserComment":
+                comment = decode_user_comment(val)
+                return parse_orientation_comment(comment)
+    return None, None, None
+
+
 def extract_timestamp(exif: Dict[int, Any]) -> Optional[str]:
     if not exif:
         return None
@@ -161,6 +246,9 @@ def process_image(path: Path) -> Dict[str, Any]:
         "latitude": None,
         "longitude": None,
         "altitude": None,
+        "phi": None,
+        "alpha": None,
+        "kappa": None,
         "writable": writable,
         "exifStatus": "READ_ONLY" if not writable else "NO_EXIF",
         "timestamp": None,
@@ -181,12 +269,16 @@ def process_image(path: Path) -> Dict[str, Any]:
                 exif = {}
 
             lat, lon, alt = extract_gps_info(exif)
+            phi, alpha, kappa = extract_orientation(exif, path)
             ts = extract_timestamp(exif)
             camera = extract_camera(exif)
 
             base["latitude"] = lat
             base["longitude"] = lon
             base["altitude"] = alt
+            base["phi"] = phi
+            base["alpha"] = alpha
+            base["kappa"] = kappa
             base["timestamp"] = ts
             base["camera"] = camera
             try:
@@ -204,6 +296,15 @@ def process_image(path: Path) -> Dict[str, Any]:
         pass
 
     return base
+
+
+def fmt_num(value: Optional[float]) -> str:
+    if value is None:
+        return ""
+    try:
+        return f"{float(value):.6f}"
+    except Exception:
+        return ""
 
 
 def iter_image_paths(folder: Path, recursive: bool) -> List[Path]:
@@ -294,17 +395,20 @@ def main():
     if export_csv:
         target_path = Path(csv_path) if csv_path else folder_path / "gps_export.csv"
         try:
+            ordered = sorted(images, key=lambda x: (x.get("filename") or "").lower())
             with target_path.open("w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                # header
-                writer.writerow(["image_name", "latitude", "longitude", "altitude"])
-                for img in images:
+                writer.writerow(["filename", "latitude", "longitude", "altitude", "phi", "alpha", "kappa"])
+                for img in ordered:
                     writer.writerow(
                         [
                             img.get("filename", ""),
-                            img.get("latitude", ""),
-                            img.get("longitude", ""),
-                            img.get("altitude", ""),
+                            fmt_num(img.get("latitude")),
+                            fmt_num(img.get("longitude")),
+                            fmt_num(img.get("altitude")),
+                            fmt_num(img.get("phi")),
+                            fmt_num(img.get("alpha")),
+                            fmt_num(img.get("kappa")),
                         ]
                     )
         except Exception as exc:

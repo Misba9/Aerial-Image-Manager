@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -188,6 +188,9 @@ const runPackagedExe = ({ exeName, args = [], stdinPayload }) =>
 
 const preventDevToolsShortcuts = (webContents) => {
   if (!webContents) return;
+  
+  // Allow DevTools in development mode
+  if (isDev) return;
 
   webContents.on('before-input-event', (event, input) => {
     const key = (input.key || '').toLowerCase();
@@ -530,6 +533,325 @@ const runPythonScript = (
     });
   });
 
+/**
+ * Creates and sets the native application menu bar
+ * Provides File, Edit, View, Tools, and Help menus with keyboard shortcuts
+ */
+const createApplicationMenu = (mainWindow) => {
+  const isMac = process.platform === 'darwin';
+  
+  const template = [
+    // File Menu
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Import Images',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => {
+            console.log('Menu: Import Images');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'import-images' });
+            }
+          }
+        },
+        {
+          label: 'Import CSV (Geotagging)',
+          click: () => {
+            console.log('Menu: Import CSV');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'import-csv' });
+            }
+          }
+        },
+        {
+          label: 'Import KML / Shapefile',
+          click: () => {
+            console.log('Menu: Import KML/Shapefile');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'import-kml' });
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Export Selected Images',
+          accelerator: 'CmdOrCtrl+E',
+          click: () => {
+            console.log('Menu: Export Selected Images');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'export-images' });
+            }
+          }
+        },
+        {
+          label: 'Export CSV',
+          click: () => {
+            console.log('Menu: Export CSV');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'export-csv' });
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Exit',
+          accelerator: 'CmdOrCtrl+Q',
+          click: () => {
+            console.log('Menu: Exit');
+            app.quit();
+          }
+        }
+      ]
+    },
+    
+    // Edit Menu
+    {
+      label: 'Edit',
+      submenu: [
+        {
+          label: 'Undo',
+          accelerator: 'CmdOrCtrl+Z',
+          click: () => {
+            console.log('Menu: Undo');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'undo' });
+            }
+          }
+        },
+        {
+          label: 'Redo',
+          accelerator: 'CmdOrCtrl+Shift+Z',
+          click: () => {
+            console.log('Menu: Redo');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'redo' });
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Clear Selection',
+          accelerator: 'CmdOrCtrl+D',
+          click: () => {
+            console.log('Menu: Clear Selection');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'clear-selection' });
+            }
+          }
+        },
+        {
+          label: 'Delete Selected Polygon',
+          accelerator: 'Delete',
+          click: () => {
+            console.log('Menu: Delete Selected Polygon');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'delete-polygon' });
+            }
+          }
+        }
+      ]
+    },
+    
+    // View Menu
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Toggle Polygon Panel',
+          accelerator: 'CmdOrCtrl+P',
+          click: () => {
+            console.log('Menu: Toggle Polygon Panel');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'toggle-polygon-panel' });
+            }
+          }
+        },
+        {
+          label: 'Toggle Image Labels',
+          accelerator: 'CmdOrCtrl+L',
+          click: () => {
+            console.log('Menu: Toggle Image Labels');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'toggle-image-labels' });
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Reset Map View',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => {
+            console.log('Menu: Reset Map View');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'reset-map-view' });
+            }
+          }
+        },
+        {
+          label: 'Zoom In',
+          accelerator: 'CmdOrCtrl+Plus',
+          click: () => {
+            console.log('Menu: Zoom In');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'zoom-in' });
+            }
+          }
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'CmdOrCtrl+-',
+          click: () => {
+            console.log('Menu: Zoom Out');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'zoom-out' });
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Reload',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => {
+            console.log('Menu: Reload');
+            if (mainWindow) {
+              mainWindow.webContents.reload();
+            }
+          }
+        },
+        {
+          label: 'Toggle Developer Tools',
+          accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
+          visible: isDev,
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.toggleDevTools();
+            }
+          }
+        },
+        {
+          label: 'Toggle Full Screen',
+          accelerator: isMac ? 'Ctrl+Command+F' : 'F11',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.setFullScreen(!mainWindow.isFullScreen());
+            }
+          }
+        }
+      ]
+    },
+    
+    // Tools Menu
+    {
+      label: 'Tools',
+      submenu: [
+        {
+          label: 'Image Renamer',
+          accelerator: 'CmdOrCtrl+1',
+          click: () => {
+            console.log('Menu: Image Renamer');
+            if (mainWindow) {
+              mainWindow.loadFile(path.join(__dirname, 'modules', 'flightRenamer', 'renamer.html'));
+            }
+          }
+        },
+        {
+          label: 'Smart Geotagging',
+          accelerator: 'CmdOrCtrl+2',
+          click: () => {
+            console.log('Menu: Smart Geotagging');
+            if (mainWindow) {
+              mainWindow.loadFile(path.join(__dirname, 'modules', 'geotagging', 'geotag.html'));
+            }
+          }
+        },
+        {
+          label: 'Map Organizer',
+          accelerator: 'CmdOrCtrl+3',
+          click: () => {
+            console.log('Menu: Map Organizer');
+            if (mainWindow) {
+              mainWindow.loadFile(path.join(__dirname, 'modules', 'mapOrganizer', 'map.html'));
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Back to Dashboard',
+          accelerator: 'CmdOrCtrl+H',
+          click: () => {
+            console.log('Menu: Back to Dashboard');
+            if (mainWindow) {
+              mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+            }
+          }
+        }
+      ]
+    },
+    
+    // Help Menu
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Documentation',
+          click: () => {
+            console.log('Menu: Documentation');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'show-documentation' });
+            }
+          }
+        },
+        {
+          label: 'View User Manual',
+          click: () => {
+            console.log('Menu: View User Manual');
+            const manualPath = path.join(__dirname, '..', 'Aerial_Image_Manager_User_Manual_v1.0.0.doc');
+            if (fs.existsSync(manualPath)) {
+              require('electron').shell.openPath(manualPath);
+            } else {
+              dialog.showMessageBox(mainWindow, {
+                type: 'info',
+                title: 'User Manual',
+                message: 'User manual not found',
+                detail: 'The user manual file could not be located.'
+              });
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'About Shamal Tools',
+          click: () => {
+            console.log('Menu: About');
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'About Shamal Tools',
+              message: 'Shamal Tools',
+              detail: `Version: 1.0.4\n\nA professional desktop application for aerial image management, geotagging, and map organization.\n\n© 2024 Shamal Tools`
+            });
+          }
+        },
+        {
+          label: 'Check for Updates',
+          click: () => {
+            console.log('Menu: Check for Updates');
+            if (mainWindow) {
+              mainWindow.webContents.send('menu-action', { action: 'check-updates' });
+            }
+          }
+        }
+      ]
+    }
+  ];
+
+  // Build and set the menu
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+  
+  return menu;
+};
+
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -540,14 +862,15 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      devTools: false, // Disable devtools in all environments for hardening
+      devTools: isDev, // Enable devtools in development mode
       backgroundThrottling: false,
       // Disable GPU acceleration to prevent cache errors
       offscreen: false
     }
   });
 
-  mainWindow.removeMenu();
+  // Create and set the application menu
+  createApplicationMenu(mainWindow);
   hardenWebContents(mainWindow);
 
   // Prevent DPI/zoom scaling in Electron (map alignment fix)
@@ -1153,12 +1476,26 @@ const registerIpcHandlers = () => {
     }
 
     const destRoot = path.resolve(destination);
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\.\d+Z$/, '')
-      .replace('T', '_');
-    const exportFolderName = `Exported_Region_${timestamp}`;
+    const rawExportLabel = (payload.exportLabel || payload.exportName || payload.label || '').toString().trim();
+    const normalizeExportLabel = (label, ts) => {
+      const fallback = 'exported_region';
+      if (!label) return fallback;
+      const cleaned = label
+        .replace(/[<>:"/\\|?*]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleaned) return fallback;
+      const slug = cleaned
+        .replace(/[^a-zA-Z0-9-_ ]/g, '')
+        .replace(/\s+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 120)
+        .toLowerCase();
+      return slug || fallback;
+    };
+
+    const exportFolderName = normalizeExportLabel(rawExportLabel);
     const exportFolderPath = path.join(destRoot, exportFolderName);
 
     logToFile(`[ExportImages] destination root=${destRoot} folder=${exportFolderName}`);
@@ -1208,6 +1545,20 @@ const registerIpcHandlers = () => {
 
   ipcMain.handle('map:export-images', handleExportImages);
   ipcMain.handle('export-selected-images', handleExportImages);
+
+  // KML import: read file contents and return as text
+  ipcMain.handle('map:import-kml', async (_event, payload = {}) => {
+    const filePath = payload?.path;
+    if (!filePath) {
+      return { ok: false, error: 'KML path is required' };
+    }
+    try {
+      const data = await fs.promises.readFile(filePath, 'utf8');
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, error: err?.message || 'Failed to read KML file' };
+    }
+  });
   
   Object.entries(SCRIPT_MAP).forEach(([channel, script]) => {
     if (
@@ -1260,8 +1611,11 @@ app.whenReady().then(() => {
   });
 
 app.on('browser-window-created', (_event, window) => {
-  window?.removeMenu();
-  hardenWebContents(window);
+  // Apply menu to all windows
+  if (window) {
+    createApplicationMenu(window);
+    hardenWebContents(window);
+  }
 });
 
 app.on('web-contents-created', (_event, contents) => {
